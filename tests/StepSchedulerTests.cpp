@@ -60,6 +60,7 @@ public:
         testLengthLimit();
         testInactiveAndOutOfRangeSteps();
         testMissedSounds();
+        testVeryLongBlockStaysWithinTheLimit();
         testGainAndBadInput();
     }
 
@@ -327,6 +328,26 @@ private:
         expectEquals(dfd::countMissedPlayToEnd(pattern, region, transport, 0.25), 0);
         // the sound of step 15 of pass -1 runs from ppq -0.5 to 0.0: a position inside (a loop jump) misses it
         expectEquals(dfd::countMissedPlayToEnd(pattern, region, transport, -0.25), 1);
+    }
+
+    void testVeryLongBlockStaysWithinTheLimit()
+    {
+        beginTest("a very long block does not exceed the sound start limit (no reallocation)");
+        dfd::Pattern pattern;
+        pattern.numSteps = dfd::kMinSteps;
+        for (int stepIndex = 0; stepIndex < dfd::kMinSteps; ++stepIndex)
+        {
+            setStep(pattern, stepIndex, dfd::StepMode::Forward, 0.0);
+        }
+        const dfd::SampleRegion region = makeRegion(100.0, kRate48k);
+        const dfd::Transport transport = makeTransport(kBpm120, kRate48k);
+        std::vector<dfd::SoundStart> soundStarts;
+        soundStarts.reserve(dfd::kMaxSoundStartsPerBlock);
+        const void* firstElement = soundStarts.data();
+        const int tenMinutes = 10 * 60 * static_cast<int>(kRate48k);
+        dfd::scheduleBlock(pattern, region, transport, 4.0, tenMinutes, soundStarts);
+        expectEquals(static_cast<int>(soundStarts.size()), dfd::kMaxSoundStartsPerBlock);
+        expect(static_cast<const void*>(soundStarts.data()) == firstElement);
     }
 
     void testGainAndBadInput()

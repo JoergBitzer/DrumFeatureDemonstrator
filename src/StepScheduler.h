@@ -15,6 +15,7 @@ constexpr int kMinSteps = 8;
 constexpr int kMaxSteps = 32;
 constexpr int kDefaultSteps = 16;
 constexpr int kStepsPerBeat = 4; // 1/16 notes
+constexpr int kMaxSoundStartsPerBlock = 256; // scheduleBlock stops here, so a reserved output vector never reallocates
 constexpr double kSemitonesPerOctave = 12.0;
 constexpr double kSecondsPerMinute = 60.0;
 
@@ -77,7 +78,7 @@ double samplesPerStep(const Transport& transport);
 bool isPlayToEndAllowed(const Pattern& pattern, const StepSettings& step, const SampleRegion& region, const Transport& transport);
 
 // Sound starts of the block [blockStartPpq, blockStartPpq + numSamples). The output vector is cleared first;
-// reserve its capacity beforehand (kMaxSteps is enough for one block), then no allocation happens.
+// reserve kMaxSoundStartsPerBlock beforehand, then no allocation happens (further sound starts of a very long block are dropped).
 void scheduleBlock(const Pattern& pattern, const SampleRegion& region, const Transport& transport,
                    double blockStartPpq, int numSamples, std::vector<SoundStart>& soundStarts);
 

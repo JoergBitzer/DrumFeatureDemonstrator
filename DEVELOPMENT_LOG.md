@@ -43,3 +43,7 @@ merge way, so that we can go back to each state afterwards. Write all your comme
 - Tests: new unit tests for the sample store; all unit tests pass; pluginval Debug `--skip-gui-tests` 3/3.
 - Decision taken without asking: the embedded sample limit is 8 MB (bigger samples are only referenced by name in the project state: they then rely on the samples folder).
 
+### Review fix (branch `fix/sound-start-capacity`, version 0.5.1)
+- Own code review of the audio path found one real-time risk: `scheduleBlock` could push more sound starts than the reserved capacity (32) for a very long block (offline render with a huge block size, 8 steps at a fast tempo), which would allocate in the audio thread. Now `kMaxSoundStartsPerBlock = 256` is reserved and `scheduleBlock` stops there; a unit test checks that a ten-minute block neither exceeds the limit nor reallocates.
+- Known minor points, not changed: `m_sampleName` / `m_loadedSampleFileName` (juce::String) are written on the message thread and read by `getStateInformation` which a host may call from another thread (a torn read is theoretically possible; the strings are short and change only on load). The GUI notices a changed sample by comparing pointers on a 30 Hz timer.
+
