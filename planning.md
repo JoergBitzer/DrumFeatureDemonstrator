@@ -110,10 +110,15 @@ Design points (details in the design note of W2):
 
 ## 8. Open questions (remaining; my proposal first)
 1. **Mode button without an active step:** the mode only matters for an active step. Proposal: the mode button of an inactive step is disabled (greyed), and its stored mode is kept. Or should a click on the mode button of an inactive step also switch the step on?
+Answer: they should be inactive
 2. **Pattern length steps:** any value from 8 to 32 (odd lengths give polyrhythms against the bar) or only 8, 16, 24, 32? Proposal: any value from 8 to 32, default 16.
+OK
 3. **Declick method:** zero-crossing snap of the handle (does not change the sound) or a short fade (2 ms) at the region ends (always click-free, shortens the attack slightly)? Proposal: zero-crossing snap, as the button text says "snap to zero crossing"; a fade can be added in W8.
+OK
 4. **Sample embedded or copy:** the copy in the user's data folder is planned; embed the audio in the preset (robust, larger files) later if needed (W7)? Proposal: copy first, decide in W7.
+OK
 5. **Sample length limit:** very long samples make the run-up longer than the pattern. Proposal: limit play to end to a duration of at most one pattern length and show "too long" in the notification instead of playing; longer samples still play normally.
+Shorten the sample by changing the end handle so that the sample fits into the pattern length. The user can still load a long sample, but the plugin will not allow "play to end" if it exceeds the pattern length.
 
 ## 9. Progress
 - 2026-10-07: this planning document created from the author's first ideas (v1).
