@@ -26,6 +26,7 @@ const int g_minPresetHandlerHeight(30); // in pixels
 // ------- Midi Keyboard display-------
 const float g_midikeyboardratio(0.13f); // in percent of height()
 const float g_wheelstokeyboardratio(0.1f);
+const int g_octaveOfMiddleC(4); // MIDI note 60 is called C4 (JUCE's default would label it C3)
 
 // -------Your defines for GUI --------
 
