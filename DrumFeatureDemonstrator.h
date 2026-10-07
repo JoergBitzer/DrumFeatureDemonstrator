@@ -1,13 +1,69 @@
 #pragma once
 
+#include <array>
+#include <atomic>
 #include <vector>
 #include <juce_audio_processors/juce_audio_processors.h>
 
 #include "tools/SynchronBlockProcessor.h"
 #include "src/SampleHolder.h"
 #include "src/VoiceBank.h"
+#include "src/Sequencer.h"
+#include "src/StepParameters.h"
 #include "tools/ParameterSpec.h"
 #include "PluginSettings.h"
+const struct
+{
+	const std::string ID = "PatternLength";
+	const std::string name = "Pattern length";
+	const std::string unitName = "steps";
+	const float minValue = 8.f;
+	const float maxValue = 32.f;
+	const float defaultValue = 16.f;
+	const int numDecimalPlaces = 0;
+	const bool logFrequency = false;
+	const std::string help = "Number of 1/16 steps of the pattern (8 - 32).";
+}g_paramPatternLength;
+
+const struct
+{
+	const std::string ID = "SyncToHost";
+	const std::string name = "Sync to host";
+	const std::string unitName = "";
+	const float minValue = 0.f;
+	const float maxValue = 1.f;
+	const float defaultValue = 1.f;
+	const int numDecimalPlaces = 0;
+	const bool logFrequency = false;
+	const std::string help = "1 = follow the tempo and position of the DAW, 0 = internal tempo and play button.";
+}g_paramSyncToHost;
+
+const struct
+{
+	const std::string ID = "InternalBpm";
+	const std::string name = "Internal tempo";
+	const std::string unitName = "bpm";
+	const float minValue = 40.f;
+	const float maxValue = 240.f;
+	const float defaultValue = 120.f;
+	const int numDecimalPlaces = 1;
+	const bool logFrequency = false;
+	const std::string help = "Tempo of the internal beat (used if Sync to host is off).";
+}g_paramInternalBpm;
+
+const struct
+{
+	const std::string ID = "InternalPlay";
+	const std::string name = "Internal play";
+	const std::string unitName = "";
+	const float minValue = 0.f;
+	const float maxValue = 1.f;
+	const float defaultValue = 0.f;
+	const int numDecimalPlaces = 0;
+	const bool logFrequency = false;
+	const std::string help = "Plays (1) or pauses (0) the internal beat (used if Sync to host is off).";
+}g_paramInternalPlay;
+
 
 class DrumFeatureDemonstratorAudioProcessor;
 
@@ -90,7 +146,19 @@ public:
     // message thread: hands a loaded sample to the audio thread
     void setSample(std::shared_ptr<const dfd::SampleData> sample);
 
+    // state for the GUI (written by the audio thread, read by the GUI timer)
+    int getCurrentStep() const { return m_currentStep.load(); }
+    int getSkippedSoundCount() const { return m_skippedSoundCount.load(); } // counts up with every skipped sound
+    juce::uint32 getInvalidStepMask() const { return m_invalidStepMask.load(); } // bit n: step n cannot play to end
+    float getDisplayedBpm() const { return m_displayedBpm.load(); }
+    bool isHostPositionAvailable() const { return m_hostPositionAvailable.load(); }
+
 private:
+    void readPattern(dfd::Pattern& pattern) const;
+    dfd::BlockTransport getBlockTransport(int numSamples, bool syncToHost);
+    void addSequencerEvents(const dfd::SampleData& sample, int regionStart, int regionEnd);
+    void updateInvalidSteps(const dfd::Pattern& pattern, const dfd::SampleRegion& region, double bpm);
+    float stepValue(int stepIndex, dfd::StepParam param) const;
     void addNoteEvents(const juce::MidiBuffer& midiMessages, const dfd::SampleData& sample, int regionStart, int regionEnd);
 
 	DrumFeatureDemonstratorAudioProcessor* m_processor;
@@ -99,8 +167,21 @@ private:
     std::atomic<float>* m_baseNote = nullptr;
     std::atomic<float>* m_regionStart = nullptr;
     std::atomic<float>* m_regionEnd = nullptr;
+    std::atomic<float>* m_patternLength = nullptr;
+    std::atomic<float>* m_syncToHost = nullptr;
+    std::atomic<float>* m_internalBpm = nullptr;
+    std::atomic<float>* m_internalPlay = nullptr;
+    std::array<std::atomic<float>*, dfd::kMaxSteps * dfd::kNumParamsPerStep> m_stepParameters{};
     dfd::SampleHolder m_sampleHolder;
     dfd::VoiceBank m_voiceBank;
+    dfd::Sequencer m_sequencer;
+    dfd::InternalClock m_internalClock;
+    std::vector<dfd::SoundStart> m_soundStarts;
+    std::atomic<int> m_currentStep{-1};
+    std::atomic<int> m_skippedSoundCount{0};
+    std::atomic<juce::uint32> m_invalidStepMask{0};
+    std::atomic<float> m_displayedBpm{0.f};
+    std::atomic<bool> m_hostPositionAvailable{false};
 };
 
 class DrumFeatureDemonstratorGUI : public juce::Component, public juce::FileDragAndDropTarget

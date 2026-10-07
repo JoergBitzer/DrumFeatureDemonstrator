@@ -61,6 +61,9 @@ struct SoundStart
     float gain = 1.0f;
 };
 
+// number of steps of the pattern, limited to kMinSteps..kMaxSteps
+int numUsedSteps(const Pattern& pattern);
+
 // access by an int index (the array index type is unsigned)
 StepSettings& stepAt(Pattern& pattern, int stepIndex);
 const StepSettings& stepAt(const Pattern& pattern, int stepIndex);

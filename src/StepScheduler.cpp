@@ -4,6 +4,19 @@
 
 namespace dfd
 {
+int numUsedSteps(const Pattern& pattern)
+{
+    if (pattern.numSteps < kMinSteps)
+    {
+        return kMinSteps;
+    }
+    if (pattern.numSteps > kMaxSteps)
+    {
+        return kMaxSteps;
+    }
+    return pattern.numSteps;
+}
+
 namespace
 {
 constexpr int kPassesBefore = 1; // look-ahead: a sound starts at most one pattern pass before its step
@@ -34,19 +47,6 @@ bool isRegionValid(const SampleRegion& region)
         return false;
     }
     return true;
-}
-
-int numUsedSteps(const Pattern& pattern)
-{
-    if (pattern.numSteps < kMinSteps)
-    {
-        return kMinSteps;
-    }
-    if (pattern.numSteps > kMaxSteps)
-    {
-        return kMaxSteps;
-    }
-    return pattern.numSteps;
 }
 
 double patternLengthInBeats(const Pattern& pattern)
