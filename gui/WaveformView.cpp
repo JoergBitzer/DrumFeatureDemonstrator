@@ -1,5 +1,7 @@
 #include "WaveformView.h"
 
+#include "../src/DebugLog.h"
+
 #include <algorithm>
 #include <cmath>
 
@@ -253,12 +255,14 @@ void WaveformView::mouseUp(const juce::MouseEvent& event)
 bool WaveformView::isInterestedInFileDrag(const juce::StringArray& files)
 {
     // any file: the loader decides whether it can read it, and the user gets a message if not
+    debugLog("waveform: isInterestedInFileDrag, files: " + files.joinIntoString(" | "));
     return files.size() > 0;
 }
 
 void WaveformView::fileDragEnter(const juce::StringArray& files, int x, int y)
 {
     juce::ignoreUnused(files, x, y);
+    debugLog("waveform: fileDragEnter");
     m_fileIsOver = true;
     repaint();
 }
@@ -282,6 +286,7 @@ juce::File WaveformView::fileFromDroppedText(const juce::String& text)
 
 bool WaveformView::isInterestedInTextDrag(const juce::String& text)
 {
+    debugLog("waveform: isInterestedInTextDrag: " + text);
     return fileFromDroppedText(text).existsAsFile();
 }
 
@@ -298,6 +303,7 @@ void WaveformView::textDropped(const juce::String& text, int x, int y)
 void WaveformView::filesDropped(const juce::StringArray& files, int x, int y)
 {
     juce::ignoreUnused(x, y);
+    debugLog("waveform: filesDropped, files: " + files.joinIntoString(" | "));
     m_fileIsOver = false;
     repaint();
     if (files.size() > 0 && onFileDropped)
