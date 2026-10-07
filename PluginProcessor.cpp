@@ -1,6 +1,7 @@
 #include "PluginProcessor.h"
 #include "src/SampleLoader.h"
 #include "src/SampleStore.h"
+#include "tools/DayNightLookAndFeel.h"
 #include "PluginEditor.h"
 
 //==============================================================================
@@ -270,6 +271,31 @@ void DrumFeatureDemonstratorAudioProcessor::loadSampleFromState()
     m_algo.setSample(sample);
     m_sampleName = wantedName;
     m_loadedSampleFileName = wantedName;
+}
+
+namespace
+{
+const char* const kLastSampleFolderProperty = "lastSampleFolder";
+}
+
+juce::File DrumFeatureDemonstratorAudioProcessor::getLastSampleFolder()
+{
+    bool presetFolderWasCreated;
+    auto settings = jade::createUserSettings(m_presets.getUserPresetsFolder(presetFolderWasCreated));
+    const juce::File folder(settings->getValue(kLastSampleFolderProperty));
+    if (folder.isDirectory())
+    {
+        return folder;
+    }
+    return juce::File::getSpecialLocation(juce::File::userMusicDirectory);
+}
+
+void DrumFeatureDemonstratorAudioProcessor::setLastSampleFolder(const juce::File& folder)
+{
+    bool presetFolderWasCreated;
+    auto settings = jade::createUserSettings(m_presets.getUserPresetsFolder(presetFolderWasCreated));
+    settings->setValue(kLastSampleFolderProperty, folder.getFullPathName());
+    settings->saveIfNeeded();
 }
 
 juce::String DrumFeatureDemonstratorAudioProcessor::getSampleName() const

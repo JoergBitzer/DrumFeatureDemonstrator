@@ -98,3 +98,7 @@ The author tried version 0.5.1 in Bitwig and reported: (1) drag and drop of a sa
 - The space key starts and pauses the internal player (like the Play/Pause button) while Host sync is off; with Host sync on it does nothing and returns "not handled" so the host can use the key (the info line explains). Done in `DrumFeatureDemonstratorGUI::keyPressed` (the editor forwards the keys), through the parameter `InternalPlay` with a gesture.
 - Checked with the Tester (`--keys space` sends a space through the window peer): internal mode, one space -> button shows "Pause", the frame follows the playing step (step 4 after about 0.7 s), "Internal player started"; two spaces -> "Play", paused, frame back on the selected step.
 
+### Last sample folder (branch `feature/remember-sample-folder`, version 0.9.0)
+- Request of the author: "load sample should remember the last directory". The folder of every loaded sample (Load button and drop) is stored as `lastSampleFolder` in `user.settings` (next to the day/night choice); the next file dialog starts there (first time, or if the folder is gone: the user's Music folder).
+- Checked: a simulated drop of a sample from `.../Junk Drums_JunkKit/Hits` writes `<VALUE name="lastSampleFolder" val=".../Hits"/>` into the settings file. Known small point: the editor keeps its own `PropertiesFile` object for the day/night choice and writes it when the theme is toggled; that write can drop a folder stored after the editor was opened (the next load stores it again).
+

@@ -643,7 +643,7 @@ bool DrumFeatureDemonstratorGUI::isSampleFileExtension(const juce::File& file)
 
 void DrumFeatureDemonstratorGUI::chooseSampleFile()
 {
-    m_fileChooser = std::make_unique<juce::FileChooser>("Load a sample", juce::File(), "*.wav;*.aif;*.aiff;*.flac;*.ogg");
+    m_fileChooser = std::make_unique<juce::FileChooser>("Load a sample", m_processor.getLastSampleFolder(), "*.wav;*.aif;*.aiff;*.flac;*.ogg");
     const int chooserFlags = juce::FileBrowserComponent::openMode | juce::FileBrowserComponent::canSelectFiles;
     m_fileChooser->launchAsync(chooserFlags, [this](const juce::FileChooser& chooser)
     {
@@ -658,6 +658,7 @@ void DrumFeatureDemonstratorGUI::chooseSampleFile()
 void DrumFeatureDemonstratorGUI::loadSampleFile(const juce::File& file)
 {
     m_loadMessage = juce::String();
+    m_processor.setLastSampleFolder(file.getParentDirectory()); // the next "Load sample" starts here
     if (m_processor.loadSample(file))
     {
         m_sampleLabel.setText(m_processor.getSampleName(), juce::dontSendNotification);

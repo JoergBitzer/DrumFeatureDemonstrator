@@ -52,6 +52,10 @@ public:
     bool loadSample(const juce::File& file) override;
     juce::String getSampleName() const override;
 
+    // the folder the last sample came from (kept in user.settings), the start folder of the file dialog
+    juce::File getLastSampleFolder();
+    void setLastSampleFolder(const juce::File& folder);
+
     float getScaleFactor(){return m_pluginScaleFactor;};
     void setScaleFactor(float newscalefactor){m_pluginScaleFactor = newscalefactor;};
     
