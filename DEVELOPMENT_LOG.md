@@ -16,6 +16,10 @@ merge way, so that we can go back to each state afterwards. Write all your comme
 | `state-W1-0.0.1` | skeleton from AAT2 as instrument |
 | `state-W2-0.1.0` | pure step scheduler with play to end, unit tests |
 | `state-W3-0.2.0` | sample engine, MIDI notes with velocity, sample loading (tested by the author in Bitwig: shows as instrument) |
+| `state-W5-0.3.0` | sequencer, internal clock, 32 x 4 step parameters, play to end in the plugin (W4 + W5) |
+| `state-W6-0.4.0` | GUI: waveform with handles and drop, step grid, tempo section, notifications |
+| `state-W7-0.5.0` | sample stored with presets and DAW projects, factory presets, manual |
+| `state-W7-0.5.1` | review fix: no reallocation for very long blocks (this is the "solution" state) |
 
 ## Log
 (newest at the end; each entry: what was done, result, decisions taken without asking, open points)
@@ -46,4 +50,22 @@ merge way, so that we can go back to each state afterwards. Write all your comme
 ### Review fix (branch `fix/sound-start-capacity`, version 0.5.1)
 - Own code review of the audio path found one real-time risk: `scheduleBlock` could push more sound starts than the reserved capacity (32) for a very long block (offline render with a huge block size, 8 steps at a fast tempo), which would allocate in the audio thread. Now `kMaxSoundStartsPerBlock = 256` is reserved and `scheduleBlock` stops there; a unit test checks that a ten-minute block neither exceeds the limit nor reallocates.
 - Known minor points, not changed: `m_sampleName` / `m_loadedSampleFileName` (juce::String) are written on the message thread and read by `getStateInformation` which a host may call from another thread (a torn read is theoretically possible; the strings are short and change only on load). The GUI notices a changed sample by comparing pointers on a 30 Hz timer.
+
+## Summary: where the product stands (version 0.5.1)
+**What it is now:** an instrument plug-in (VST3, Standalone; AU on macOS by CI) that plays one sample from a 8-32 step 1/16 grid and from MIDI, with per-step on / mode (forward, reverse, reverse + **play to end**) / pitch (+-24 st) / velocity, a waveform with start/end handles and drop, host sync (beat position from the DAW) or internal beat with Play/Pause, base note, declick, presets (with the sample name), DAW projects (with the sample), four factory presets, a manual and release notes.
+
+**How the new feature was verified (all without a DAW):**
+1. pure scheduling function with unit tests (known numbers, 5 pitches x 4 tempi x 3 host rates x 2 file rates x 3 lengths: start + duration = end of the step within one sample);
+2. end-to-end unit test (clock -> sequencer -> voice bank -> buffer): the last audible sample of the reversed sound is within one resampling step of the end of its step;
+3. rendered through the real plug-in code with the Tester (`render`, internal beat): a 0.3 s ramp, and a MusicRadar cymbal with the factory preset "Reverse into the beat": the reversed sound ends at 1.0000 / 2.0000 / 3.0000 / 4.0000 s, i.e. exactly at the end of steps 8 and 16 at 120 bpm.
+
+**What was not tested (be aware):**
+- the plug-in in a real host with a moving playhead (Bitwig): the host path (`AudioPlayHead` -> `BlockTransport`) is only covered by the unit tests of the sequencer, not by a host. Please try: Host sync on, play, loop, jump into a run-up (the notice should appear), change the tempo.
+- the mouse interaction (handle drag, drop, mode button clicks) was not driven by an automated test; only the drawing was checked with snapshots.
+- Windows and macOS (CI builds only start with a version tag; no tag was set).
+- the GUI tests of pluginval in Debug (see the monitor finding above); the Release build passes the complete pluginval.
+
+**Ideas for later (W8):** swing, a second sample or per-step sample choice, forward + play to end, play to end for MIDI notes, Hermite interpolation, a legend for the knobs, fade-based declick, a count-in for the internal beat, following tempo changes during a run-up.
+
+**Where to look:** `planning.md` (plan, decisions, progress), this file (what happened, results, findings), `docs/design/W2-play-to-end.md` (the algorithm), `docs/manual/` (user manual).
 
