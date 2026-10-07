@@ -124,3 +124,4 @@ None. (The five questions of draft v2 are answered and moved to section 7.)
 - 2026-10-07: git repository created, v1 with the author's answers committed; v2 written (answers and comments worked in).
 - 2026-10-07: answers to the five open questions committed; v3 written (no open questions left).
 - 2026-10-07: W1 (skeleton) done: template copied, renamed, instrument settings, JUCE 9.0.3 submodule; Debug and Release build, pluginval SUCCESS.
+- 2026-10-07: W2 done (branch `feature/scheduler`, version 0.1.0): `src/StepScheduler.*`, `tests/StepSchedulerTests.cpp`, `docs/design/W2-play-to-end.md`; unit tests pass (also checked by a mutation of the anchor).
