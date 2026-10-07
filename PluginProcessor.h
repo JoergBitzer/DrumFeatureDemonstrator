@@ -7,7 +7,8 @@
 #include "src/SampleLoadable.h"
 
 //==============================================================================
-class DrumFeatureDemonstratorAudioProcessor  : public juce::AudioProcessor, public dfd::SampleLoadable
+class DrumFeatureDemonstratorAudioProcessor  : public juce::AudioProcessor, public dfd::SampleLoadable,
+                                               private juce::ValueTree::Listener, private juce::AsyncUpdater
 {
 public:
     friend class DrumFeatureDemonstratorAudioProcessorEditor;
@@ -58,6 +59,13 @@ public:
     DrumFeatureDemonstratorAudio m_algo;
     std::unique_ptr<AudioProcessorValueTreeState> m_parameterVTS;
 private:
+    // the sample name in the plugin state (property "SampleFile") follows the loaded sample, presets and DAW projects restore it
+    void valueTreePropertyChanged(juce::ValueTree& tree, const juce::Identifier& property) override;
+    void valueTreeRedirected(juce::ValueTree& tree) override; // replaceState() (preset or DAW state) replaces the whole tree
+    void handleAsyncUpdate() override;
+    juce::File getSamplesFolderOfUser();
+    void loadSampleFromState();
+
     CriticalSection m_protect;
     float m_fs; // sampling rate is always needed
 
@@ -66,6 +74,7 @@ private:
 	PresetHandler m_presets;
     float m_pluginScaleFactor = 1.0;    
     juce::String m_sampleName;
+    juce::String m_loadedSampleFileName; // name of the copy in the samples folder that is loaded now
 #if WITH_MIDIKEYBOARD    
     MidiKeyboardState m_keyboardState;
     MidiModPitchBendState m_wheelState;

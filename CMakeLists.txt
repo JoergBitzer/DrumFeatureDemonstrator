@@ -17,7 +17,7 @@ endif()
 
 set(TARGET_NAME DrumFeatureDemonstrator)
 
-project(${TARGET_NAME} VERSION 0.4.0)
+project(${TARGET_NAME} VERSION 0.5.0)
 
 if(NOT TARGET juce::juce_core) # JUCE not added by a parent project: use the submodule
     if(NOT EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/JUCE/CMakeLists.txt")
@@ -41,7 +41,7 @@ configure_file(Versioning.h.in Versioning.h)
 #    `kAudioUnitType_MusicDevice`, `kAudioUnitType_MusicEffect`, `kAudioUnitType_OfflineEffect`,
 #    `kAudioUnitType_Output`, `kAudioUnitType_Panner`
 
-# add_compile_definitions(FACTORY_PRESETS) # use this if you have finally some presets to add (see binary files below)
+add_compile_definitions(FACTORY_PRESETS) # factory presets from res/presets (made by tools/make_factory_presets.py, see binary files below)
 add_compile_definitions(WITH_MIDIKEYBOARD) # MIDI keyboard in the GUI: plays the sample
 add_compile_definitions(WITH_PRESETHANDLERGUI)
 add_compile_definitions(WITH_DAYNIGHT) # day/night theme button in the preset bar (needs WITH_PRESETHANDLERGUI)
@@ -102,6 +102,7 @@ target_sources(${TARGET_NAME}
         src/VoiceBank.cpp
         src/SampleHolder.cpp
         src/SampleLoader.cpp
+        src/SampleStore.cpp
         gui/WaveformView.cpp
         gui/StepGrid.cpp
         )
@@ -136,23 +137,23 @@ target_compile_definitions(${TARGET_NAME}
 
 
 # use this code for binaries (e.g. presets)
-#file(GLOB TEMPLATE_RESOURCES_GLOB
-#  res/*.xml
-#  )
+file(GLOB TEMPLATE_RESOURCES_GLOB
+  res/presets/*.xml
+  )
 
-#juce_add_binary_data( ${TARGET_NAME}-binary
-#  SOURCES ${TEMPLATE_RESOURCES_GLOB}
-#)
-#if( UNIX AND NOT APPLE )
-#set_target_properties(${TARGET_NAME}-binary PROPERTIES
-#    POSITION_INDEPENDENT_CODE TRUE)
-#endif()
+juce_add_binary_data( ${TARGET_NAME}-binary
+  SOURCES ${TEMPLATE_RESOURCES_GLOB}
+)
+if( UNIX AND NOT APPLE )
+set_target_properties(${TARGET_NAME}-binary PROPERTIES
+    POSITION_INDEPENDENT_CODE TRUE)
+endif()
 
 
 
 target_link_libraries(${TARGET_NAME}
     PRIVATE
-        # AudioPluginData           # If we'd created a binary data target, we'd link to it here
+        ${TARGET_NAME}-binary       # the factory presets (res/presets)
         # AudioPluginDrumFeatureDemonstrator-binary # or here if we used the recursice method
         juce::juce_audio_utils
         # juce::juce_opengl  # if we want to use opengl
@@ -189,12 +190,14 @@ if(DFD_BUILD_UNIT_TESTS)
         tests/StepSchedulerTests.cpp
         tests/SampleEngineTests.cpp
         tests/SequencerTests.cpp
+        tests/SampleStoreTests.cpp
         src/StepScheduler.cpp
         src/Sequencer.cpp
         src/SampleData.cpp
         src/SampleVoice.cpp
         src/VoiceBank.cpp
-        src/SampleHolder.cpp)
+        src/SampleHolder.cpp
+        src/SampleStore.cpp)
     target_compile_definitions(${TARGET_NAME}_UnitTests PRIVATE JUCE_USE_CURL=0 JUCE_WEB_BROWSER=0)
     target_link_libraries(${TARGET_NAME}_UnitTests PRIVATE juce::juce_core
         PUBLIC juce::juce_recommended_config_flags juce::juce_recommended_warning_flags)

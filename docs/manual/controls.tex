@@ -2,6 +2,17 @@
 \hline
 Control & Range & Default & Description \\
 \hline
-Example & 1.0 xyz - 2.0 xyz & 1.2 xyz & An example parameter; replace it with your own. \\
+Base note & 0 - 127 & 60 (C4) & MIDI note at which the sample plays at its original speed. \\
+Start & 0 - 1 & 0 & Start of the played region, as a fraction of the sample length (waveform handle). \\
+End & 0 - 1 & 1 & End of the played region (waveform handle). \\
+Pattern length & 8 - 32 steps & 16 & Number of 1/16 steps of the pattern. \\
+Sync to host & off / on & on & On: follow the tempo and position of the DAW. Off: internal tempo and play button. \\
+Internal tempo & 40 - 240 bpm & 120 & Tempo of the internal beat. \\
+Internal play & pause / play & pause & Plays or pauses the internal beat (only without host sync). \\
+Declick & off / on & off & Handles snap to a zero crossing of the sample when moved. \\
+Step $n$ on & off / on & off & Plays the sample on this step. \\
+Step $n$ mode & 0 / 1 / 2 & 0 & 0 forward, 1 reverse, 2 reverse and play to end. \\
+Step $n$ pitch & $-24$ - $24$ st & 0 & Pitch of the step in semitones, relative to the base note. \\
+Step $n$ velocity & 0 - 1 & 1 & Gain of the step. \\
 \hline
 \end{tabular}

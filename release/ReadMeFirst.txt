@@ -32,7 +32,11 @@ Copy the directory DrumFeatureDemonstrator.vst3 to
 /home/yourUSERNAME/.vst3/
 
 Done! Start your DAW and let it rescan the plugins.
-The Standalone application runs without a DAW: audio input -> DrumFeatureDemonstrator -> audio output.
+The Standalone application runs without a DAW: it plays the sample from the keyboard of the window and, with "Host sync" switched off, from its own beat (Play button).
+
+## First steps
+Load a sample (button "Load sample" or drop a file onto the waveform), click some steps, and press Play (Host sync off) or play the DAW (Host sync on).
+The mode button below a step switches forward / reverse / reverse + play to end: the sample then ends exactly at the end of that step. See the manual.
 
 Have fun!
 

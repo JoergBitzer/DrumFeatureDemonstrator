@@ -1,5 +1,6 @@
 #include "PluginProcessor.h"
 #include "src/SampleLoader.h"
+#include "src/SampleStore.h"
 #include "PluginEditor.h"
 
 //==============================================================================
@@ -20,6 +21,7 @@ DrumFeatureDemonstratorAudioProcessor::DrumFeatureDemonstratorAudioProcessor()
         AudioProcessorValueTreeState::ParameterLayout(m_paramVector.begin(), m_paramVector.end()));
 
     m_algo.prepareParameter(m_parameterVTS);
+    m_parameterVTS->state.addListener(this);
 
 	m_presets.setAudioValueTreeState(m_parameterVTS.get());
     // if needed add categories, if g_PresetCategories contains one empty string "", nothing happened
@@ -36,7 +38,8 @@ DrumFeatureDemonstratorAudioProcessor::DrumFeatureDemonstratorAudioProcessor()
 
 DrumFeatureDemonstratorAudioProcessor::~DrumFeatureDemonstratorAudioProcessor()
 {
-
+    cancelPendingUpdate();
+    m_parameterVTS->state.removeListener(this);
 }
 
 //==============================================================================
@@ -189,6 +192,21 @@ void DrumFeatureDemonstratorAudioProcessor::processBlock (juce::AudioBuffer<floa
 }
 
 //==============================================================================
+namespace
+{
+const char* const kSampleFileProperty = "SampleFile";
+const char* const kSampleDataChild = "SampleData";
+const char* const kSampleDataNameProperty = "name";
+const char* const kSampleDataBytesProperty = "bytes";
+const char* const kMissingPrefix = "Missing: ";
+} // namespace
+
+juce::File DrumFeatureDemonstratorAudioProcessor::getSamplesFolderOfUser()
+{
+    bool presetFolderWasCreated;
+    return dfd::getSamplesFolder(m_presets.getUserPresetsFolder(presetFolderWasCreated));
+}
+
 bool DrumFeatureDemonstratorAudioProcessor::loadSample(const juce::File& file)
 {
     std::shared_ptr<const dfd::SampleData> sample = dfd::loadSampleFile(file);
@@ -196,9 +214,62 @@ bool DrumFeatureDemonstratorAudioProcessor::loadSample(const juce::File& file)
     {
         return false;
     }
+    const juce::File storedCopy = dfd::storeSampleCopy(file, getSamplesFolderOfUser());
     m_algo.setSample(sample);
-    m_sampleName = file.getFileName();
+    m_sampleName = storedCopy.getFileName();
+    m_loadedSampleFileName = storedCopy.getFileName();
+    m_parameterVTS->state.setProperty(kSampleFileProperty, m_loadedSampleFileName, nullptr);
     return true;
+}
+
+void DrumFeatureDemonstratorAudioProcessor::valueTreePropertyChanged(juce::ValueTree& tree, const juce::Identifier& property)
+{
+    if (tree == m_parameterVTS->state && property == juce::Identifier(kSampleFileProperty))
+    {
+        triggerAsyncUpdate();
+    }
+}
+
+void DrumFeatureDemonstratorAudioProcessor::valueTreeRedirected(juce::ValueTree& tree)
+{
+    if (tree == m_parameterVTS->state)
+    {
+        triggerAsyncUpdate();
+    }
+}
+
+void DrumFeatureDemonstratorAudioProcessor::handleAsyncUpdate()
+{
+    loadSampleFromState();
+}
+
+void DrumFeatureDemonstratorAudioProcessor::loadSampleFromState()
+{
+    const juce::String wantedName = m_parameterVTS->state.getProperty(kSampleFileProperty).toString();
+    if (wantedName == m_loadedSampleFileName)
+    {
+        return;
+    }
+    if (wantedName.isEmpty())
+    {
+        // a preset without a sample keeps the current sample: write its name back into the state
+        m_parameterVTS->state.setProperty(kSampleFileProperty, m_loadedSampleFileName, nullptr);
+        return;
+    }
+    const juce::File wantedFile = getSamplesFolderOfUser().getChildFile(wantedName);
+    std::shared_ptr<const dfd::SampleData> sample;
+    if (wantedFile.existsAsFile())
+    {
+        sample = dfd::loadSampleFile(wantedFile);
+    }
+    if (sample == nullptr)
+    {
+        m_sampleName = kMissingPrefix + wantedName;
+        return;
+    }
+    m_algo.setSample(sample);
+    m_sampleName = wantedName;
+    m_loadedSampleFileName = wantedName;
 }
 
 juce::String DrumFeatureDemonstratorAudioProcessor::getSampleName() const
@@ -228,6 +299,16 @@ void DrumFeatureDemonstratorAudioProcessor::getStateInformation (juce::MemoryBlo
     vtpluginsize.setProperty("ScaleFactor",m_pluginScaleFactor,nullptr);
     state.appendChild(vtpluginsize,nullptr);
 
+    // the sample itself goes into the state of the DAW project (not into presets), so a project works without the samples folder
+    const juce::File sampleFile = getSamplesFolderOfUser().getChildFile(m_loadedSampleFileName);
+    const juce::String sampleBytes = dfd::encodeFileAsBase64(sampleFile);
+    if (m_loadedSampleFileName.isNotEmpty() && sampleBytes.isNotEmpty())
+    {
+        ValueTree vtsample(kSampleDataChild);
+        vtsample.setProperty(kSampleDataNameProperty, m_loadedSampleFileName, nullptr);
+        vtsample.setProperty(kSampleDataBytesProperty, sampleBytes, nullptr);
+        state.appendChild(vtsample, nullptr);
+    }
 
 	std::unique_ptr<XmlElement> xml(state.createXml());
 	copyXmlToBinary(*xml, destData);
@@ -251,6 +332,14 @@ void DrumFeatureDemonstratorAudioProcessor::setStateInformation (const void* dat
                 m_pluginScaleFactor = val;
                 vt.removeChild(subvt, nullptr);
 
+            }
+            ValueTree vtsample = vt.getChildWithName(kSampleDataChild);
+            if (vtsample.isValid())
+            {
+                const juce::String sampleName = vtsample.getProperty(kSampleDataNameProperty).toString();
+                const juce::File sampleFile = getSamplesFolderOfUser().getChildFile(sampleName);
+                dfd::restoreFileFromBase64(vtsample.getProperty(kSampleDataBytesProperty).toString(), sampleFile);
+                vt.removeChild(vtsample, nullptr);
             }
             juce::String presetname(xmlState->getStringAttribute("presetname"));
             m_presets.setCurrentPresetName(presetname);
