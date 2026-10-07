@@ -6,6 +6,11 @@ import sys
 import gi
 gi.require_version("Gtk", "3.0")
 from gi.repository import Gtk, Gdk, GLib
+try:
+    gi.require_version("GdkX11", "3.0")
+    from gi.repository import GdkX11  # for get_xid()
+except (ValueError, ImportError):
+    GdkX11 = None
 
 path = sys.argv[1]
 x = int(sys.argv[2]) if len(sys.argv) > 2 else 50
@@ -24,8 +29,20 @@ def on_data_get(widget, context, data, info, time):
     data.set_uris(["file://" + path])
     print("drag-data-get: uri given", flush=True)
 
+def watch_destination(context):
+    # which window does GTK consider the drop target right now?
+    try:
+        destination = context.get_dest_window()
+        xid = destination.get_xid() if destination is not None else None
+        print("dest window:", hex(xid) if xid else None, flush=True)
+    except Exception as error:  # old GTK without this call
+        print("dest window: not available", error, flush=True)
+        return False
+    return True
+
 def on_drag_begin(widget, context):
     print("drag-begin", flush=True)
+    GLib.timeout_add(150, watch_destination, context)
 
 def on_drag_end(widget, context):
     print("drag-end", flush=True)

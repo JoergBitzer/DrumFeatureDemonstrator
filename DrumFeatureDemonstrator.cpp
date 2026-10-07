@@ -3,7 +3,6 @@
 
 #include "PluginProcessor.h"
 #include "src/NoteNames.h"
-#include "src/platform/XdndProxy.h"
 #include "src/DebugLog.h"
 #include "src/StepScheduler.h"
 #include "src/SampleLoader.h"
@@ -420,24 +419,16 @@ DrumFeatureDemonstratorGUI::DrumFeatureDemonstratorGUI(DrumFeatureDemonstratorAu
 DrumFeatureDemonstratorGUI::~DrumFeatureDemonstratorGUI()
 {
     stopTimer();
-    if (m_dragProxyTopLevel != 0)
+    if (m_dropTarget != nullptr)
     {
-        dfd::removeXdndProxy(m_dragProxyTopLevel, m_dragProxyWindow);
+        m_dropTarget->stop(); // the callback must not run any more
     }
 }
 
-void DrumFeatureDemonstratorGUI::installDragProxyIfNeeded()
+void DrumFeatureDemonstratorGUI::startDropTargetIfNeeded()
 {
 #if JUCE_LINUX
-    constexpr int kTicksBetweenAttempts = 30; // about one second
-    constexpr int kMaxAttempts = 20;
-    if (m_dragProxyTopLevel != 0 || m_dragProxyTicks > kTicksBetweenAttempts * kMaxAttempts)
-    {
-        return;
-    }
-    const bool isAttemptTick = (m_dragProxyTicks % kTicksBetweenAttempts) == 0;
-    ++m_dragProxyTicks;
-    if (isAttemptTick == false)
+    if (m_dropTarget != nullptr)
     {
         return;
     }
@@ -446,11 +437,40 @@ void DrumFeatureDemonstratorGUI::installDragProxyIfNeeded()
     {
         return;
     }
-    // a host that embeds the editor in its own window does not accept file drops for it: forward them
-    m_dragProxyWindow = reinterpret_cast<unsigned long>(peer->getNativeHandle());
-    m_dragProxyTopLevel = dfd::installXdndProxy(m_dragProxyWindow);
-    dfd::debugLog("xdnd proxy: window " + juce::String(static_cast<juce::int64>(m_dragProxyWindow)) + " -> top-level " + juce::String(static_cast<juce::int64>(m_dragProxyTopLevel)));
+    // a host that embeds the editor in its own window does not accept file drops for it: take them ourselves
+    const unsigned long windowId = reinterpret_cast<unsigned long>(peer->getNativeHandle());
+    m_dropTarget = std::make_unique<dfd::XdndDropTarget>();
+    juce::Component::SafePointer<DrumFeatureDemonstratorGUI> safeThis(this);
+    m_dropTarget->start(windowId, [safeThis](const std::string& droppedText)
+    {
+        // called from the thread of the drop target: continue on the message thread
+        juce::MessageManager::callAsync([safeThis, droppedText]()
+        {
+            if (safeThis != nullptr)
+            {
+                safeThis->fileDroppedOnHostWindow(droppedText);
+            }
+        });
+    });
+    dfd::debugLog("drop target started for window " + juce::String(static_cast<juce::int64>(windowId)));
 #endif
+}
+
+void DrumFeatureDemonstratorGUI::fileDroppedOnHostWindow(const std::string& droppedText)
+{
+    dfd::debugLog("drop on the host window: " + juce::String(droppedText));
+    juce::String path = juce::String(droppedText).trim();
+    const juce::String filePrefix("file://");
+    if (path.startsWithIgnoreCase(filePrefix))
+    {
+        path = juce::URL::removeEscapeChars(path.substring(filePrefix.length()));
+        const juce::String localhostPrefix("localhost");
+        if (path.startsWith(localhostPrefix))
+        {
+            path = path.substring(localhostPrefix.length());
+        }
+    }
+    loadSampleFile(juce::File(path));
 }
 
 void DrumFeatureDemonstratorGUI::updateTempoControls(bool syncToHost)
@@ -609,7 +629,7 @@ bool DrumFeatureDemonstratorGUI::keyPressed(const juce::KeyPress& key, juce::Com
 
 void DrumFeatureDemonstratorGUI::timerCallback()
 {
-    installDragProxyIfNeeded();
+    startDropTargetIfNeeded();
     applyStepEntries();
     const bool syncToHost = m_syncButton.getToggleState();
     updateTempoControls(syncToHost);

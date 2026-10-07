@@ -10,6 +10,7 @@
 #include "src/VoiceBank.h"
 #include "src/Sequencer.h"
 #include "src/StepParameters.h"
+#include "src/platform/XdndTarget.h"
 #include "gui/WaveformView.h"
 #include "gui/StepGrid.h"
 #include "tools/ParameterSpec.h"
@@ -225,7 +226,8 @@ public:
     bool keyPressed(const juce::KeyPress& key, juce::Component* originatingComponent) override;
 private:
     bool toggleInternalPlayer();
-    void installDragProxyIfNeeded();
+    void startDropTargetIfNeeded();
+    void fileDroppedOnHostWindow(const std::string& droppedText);
     void applyStepEntries();
     void setParameterWithGesture(const juce::String& parameterId, float value);
     void showInfo(const juce::String& text);
@@ -269,8 +271,6 @@ private:
     std::shared_ptr<const dfd::SampleData> m_shownSample;
     int m_lastSkippedCount = 0;
     int m_noticeTicksLeft = 0;
-    unsigned long m_dragProxyTopLevel = 0; // Linux: host window that forwards file drops to this editor (see src/platform/XdndProxy.h)
-    unsigned long m_dragProxyWindow = 0;
-    int m_dragProxyTicks = 0;
+    std::unique_ptr<dfd::XdndDropTarget> m_dropTarget; // Linux: file drops into a host window (see src/platform/XdndTarget.h)
     juce::String m_loadMessage; // message of the last failed load, shown in the sample label
 };
