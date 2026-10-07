@@ -7,7 +7,8 @@ The presets contain no sample (the samples are not part of the repository): they
 """
 import os
 
-PRESET_VERSION = 1
+PRESET_VERSION = 2 # 2: step pitch became a MIDI note, velocity 1 - 127
+BASE_NOTE = 60
 NUM_STEPS = 32
 FORWARD, REVERSE, REVERSE_TO_END = 0, 1, 2
 
@@ -16,7 +17,7 @@ SINGLE_DEFAULTS = {
     "RegionEnd": 1.0, "RegionStart": 0.0, "SyncToHost": 1.0,
 }
 
-# name: (pattern length, {step number (1-based): (mode, pitch in semitones, velocity)})
+# name: (pattern length, {step number (1-based): (mode, semitones relative to the base note, velocity 0 - 1 (written as 1 - 127))})
 PRESETS = {
     "Four on the floor": (16, {1: (FORWARD, 0, 1.0), 5: (FORWARD, 0, 0.9), 9: (FORWARD, 0, 1.0), 13: (FORWARD, 0, 0.9)}),
     "Reverse into the beat": (16, {1: (FORWARD, 0, 1.0), 9: (FORWARD, 0, 1.0),
@@ -35,12 +36,13 @@ def preset_xml(name, length, steps):
         lines.append('  <PARAM id="%s" value="%.1f"/>' % (key, values[key]))
     for step in range(1, NUM_STEPS + 1):
         mode, pitch, velocity = steps.get(step, (FORWARD, 0, 1.0))
+        velocity = max(1, round(velocity * 127))
         active = 1.0 if step in steps else 0.0
         prefix = "Step%02d" % step
         lines.append('  <PARAM id="%sActive" value="%.1f"/>' % (prefix, active))
         lines.append('  <PARAM id="%sMode" value="%.1f"/>' % (prefix, mode))
-        lines.append('  <PARAM id="%sPitch" value="%.1f"/>' % (prefix, pitch))
-        lines.append('  <PARAM id="%sVelocity" value="%.2f"/>' % (prefix, velocity))
+        lines.append('  <PARAM id="%sNote" value="%.1f"/>' % (prefix, BASE_NOTE + pitch))
+        lines.append('  <PARAM id="%sVelocity" value="%.1f"/>' % (prefix, velocity))
     header = '<DrumFeatureDemonstratorVTS presetname="%s" category="Unknown" bank="Factory" presetversion="%d">' % (name, PRESET_VERSION)
     return '<?xml version="1.0" encoding="UTF-8"?>\n' + header + "\n" + "\n".join(lines) + "\n</DrumFeatureDemonstratorVTS>\n"
 

@@ -2,6 +2,7 @@
 #include "DrumFeatureDemonstrator.h"
 
 #include "PluginProcessor.h"
+#include "src/NoteNames.h"
 #include "src/StepScheduler.h"
 #include "src/SampleLoader.h"
 
@@ -76,11 +77,12 @@ float DrumFeatureDemonstratorAudio::stepValue(int stepIndex, dfd::StepParam para
 void DrumFeatureDemonstratorAudio::readPattern(dfd::Pattern& pattern) const
 {
     pattern.numSteps = static_cast<int>(std::lround(m_patternLength->load()));
+    pattern.baseNote = static_cast<double>(m_baseNote->load());
     for (int stepIndex = 0; stepIndex < dfd::kMaxSteps; ++stepIndex)
     {
         dfd::StepSettings& step = dfd::stepAt(pattern, stepIndex);
         step.active = stepValue(stepIndex, dfd::StepParam::Active) > kHalf;
-        step.pitchSemitones = static_cast<double>(stepValue(stepIndex, dfd::StepParam::Pitch));
+        step.noteNumber = static_cast<double>(stepValue(stepIndex, dfd::StepParam::Note));
         step.velocity = stepValue(stepIndex, dfd::StepParam::Velocity);
         const float mode = stepValue(stepIndex, dfd::StepParam::Mode);
         if (mode > dfd::kModeReverse + kHalf)
@@ -232,7 +234,7 @@ void DrumFeatureDemonstratorAudio::addParameter(std::vector<std::unique_ptr<juce
     {
         paramVector.push_back(jade::makeParameter(dfd::stepParameterSpec(stepIndex, dfd::StepParam::Active)));
         paramVector.push_back(jade::makeParameter(dfd::stepParameterSpec(stepIndex, dfd::StepParam::Mode)));
-        paramVector.push_back(jade::makeParameter(dfd::stepParameterSpec(stepIndex, dfd::StepParam::Pitch)));
+        paramVector.push_back(jade::makeParameter(dfd::stepParameterSpec(stepIndex, dfd::StepParam::Note)));
         paramVector.push_back(jade::makeParameter(dfd::stepParameterSpec(stepIndex, dfd::StepParam::Velocity)));
     }
 
@@ -263,8 +265,6 @@ namespace
 {
 constexpr int kTimerIntervalMs = 33;
 constexpr int kSkippedNoticeTicks = 90; // about 3 seconds
-constexpr int kMidiNotesPerOctave = 12;
-constexpr int kOctaveOffset = 1; // MIDI note 60 = C4
 constexpr float kRowFractionTop = 0.09f;
 constexpr float kRowFractionSecond = 0.09f;
 constexpr float kWaveformFraction = 0.22f;
@@ -273,13 +273,11 @@ constexpr float kFontFractionOfRow = 0.45f;
 constexpr int kBarTextBoxWidth = 80;
 constexpr int kBarTextBoxHeight = 20;
 constexpr float kMargin = 0.006f;
-const char* const kNoteNames[kMidiNotesPerOctave] = {"C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"};
 const juce::Colour kNoticeColour(0xFFE05050);
 
 juce::String noteNameOfMidiNote(int midiNote)
 {
-    const int octave = midiNote / kMidiNotesPerOctave - kOctaveOffset;
-    return juce::String(kNoteNames[midiNote % kMidiNotesPerOctave]) + juce::String(octave);
+    return juce::String(dfd::noteName(midiNote));
 }
 
 void setupLabel(juce::Label& label, const juce::String& text)

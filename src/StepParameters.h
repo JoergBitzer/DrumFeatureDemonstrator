@@ -15,12 +15,17 @@ enum class StepParam
 {
     Active,
     Mode,
-    Pitch,
+    Note,
     Velocity
 };
 
 constexpr int kNumParamsPerStep = 4;
-constexpr float kMaxPitchSemitones = 24.0f;
+constexpr float kMinStepNote = 12.0f;  // C0
+constexpr float kMaxStepNote = 108.0f; // C8
+constexpr float kDefaultStepNote = 60.0f; // C4
+constexpr float kMinVelocity = 1.0f;
+constexpr float kMaxVelocity = 127.0f;
+constexpr float kDefaultVelocity = 100.0f;
 constexpr float kModeForward = 0.0f;
 constexpr float kModeReverse = 1.0f;
 constexpr float kModeReverseToEnd = 2.0f;
@@ -38,7 +43,7 @@ struct ParameterSpec
     std::string help;
 };
 
-// ids like "Step01Active", "Step01Mode", "Step01Pitch", "Step01Velocity" (steps are counted from 1 in the id)
+// ids like "Step01Active", "Step01Mode", "Step01Note", "Step01Velocity" (steps are counted from 1 in the id)
 std::string stepParameterId(int stepIndex, StepParam param);
 ParameterSpec stepParameterSpec(int stepIndex, StepParam param);
 } // namespace dfd

@@ -81,9 +81,9 @@ bool isStepScheduled(const Pattern& pattern, const StepSettings& step, const Sam
     return true;
 }
 
-double durationInBeats(const StepSettings& step, const SampleRegion& region, const Transport& transport)
+double durationInBeats(const Pattern& pattern, const StepSettings& step, const SampleRegion& region, const Transport& transport)
 {
-    const double ratio = playbackRatio(step.pitchSemitones, region.fileSampleRate, transport.hostSampleRate);
+    const double ratio = playbackRatio(stepSemitones(pattern, step), region.fileSampleRate, transport.hostSampleRate);
     return durationInHostSamples(region, ratio) / samplesPerBeat(transport);
 }
 
@@ -108,6 +108,11 @@ StepSettings& stepAt(Pattern& pattern, int stepIndex)
 const StepSettings& stepAt(const Pattern& pattern, int stepIndex)
 {
     return pattern.steps[static_cast<std::size_t>(stepIndex)];
+}
+
+double stepSemitones(const Pattern& pattern, const StepSettings& step)
+{
+    return step.noteNumber - pattern.baseNote;
 }
 
 double playbackRatio(double pitchSemitones, double fileSampleRate, double hostSampleRate)
@@ -142,7 +147,7 @@ bool isPlayToEndAllowed(const Pattern& pattern, const StepSettings& step, const 
     {
         return false;
     }
-    const double ratio = playbackRatio(step.pitchSemitones, region.fileSampleRate, transport.hostSampleRate);
+    const double ratio = playbackRatio(stepSemitones(pattern, step), region.fileSampleRate, transport.hostSampleRate);
     const double duration = durationInHostSamples(region, ratio);
     const double patternLength = numUsedSteps(pattern) * samplesPerStep(transport);
     return duration <= patternLength;
@@ -178,7 +183,7 @@ void scheduleBlock(const Pattern& pattern, const SampleRegion& region, const Tra
             {
                 continue;
             }
-            const double duration = durationInBeats(step, region, transport);
+            const double duration = durationInBeats(pattern, step, region, transport);
             const double start = startInBeats(pattern, step, stepIndex, pass, duration);
             const double offsetInSamples = std::round((start - blockStartPpq) * beatLength);
             if (offsetInSamples < 0.0)
@@ -197,10 +202,10 @@ void scheduleBlock(const Pattern& pattern, const SampleRegion& region, const Tra
             SoundStart soundStart;
             soundStart.stepIndex = stepIndex;
             soundStart.sampleOffsetInBlock = static_cast<int>(offsetInSamples);
-            soundStart.playbackRatio = playbackRatio(step.pitchSemitones, region.fileSampleRate, transport.hostSampleRate);
+            soundStart.playbackRatio = playbackRatio(stepSemitones(pattern, step), region.fileSampleRate, transport.hostSampleRate);
             soundStart.reverse = (step.mode != StepMode::Forward);
             soundStart.playsToEnd = (step.mode == StepMode::ReverseToEnd);
-            soundStart.gain = step.velocity;
+            soundStart.gain = step.velocity / kMaxMidiVelocity;
             soundStarts.push_back(soundStart);
         }
     }
@@ -233,7 +238,7 @@ int countMissedPlayToEnd(const Pattern& pattern, const SampleRegion& region, con
             {
                 continue;
             }
-            const double duration = durationInBeats(step, region, transport);
+            const double duration = durationInBeats(pattern, step, region, transport);
             const double start = startInBeats(pattern, step, stepIndex, pass, duration);
             const double anchor = start + duration;
             if (start < positionPpq && positionPpq < anchor)
