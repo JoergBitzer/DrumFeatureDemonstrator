@@ -227,6 +227,7 @@ void DrumFeatureDemonstratorAudio::addParameter(std::vector<std::unique_ptr<juce
     paramVector.push_back(jade::makeParameter(g_paramSyncToHost));
     paramVector.push_back(jade::makeParameter(g_paramInternalBpm));
     paramVector.push_back(jade::makeParameter(g_paramInternalPlay));
+    paramVector.push_back(jade::makeParameter(g_paramDeclick));
     for (int stepIndex = 0; stepIndex < dfd::kMaxSteps; ++stepIndex)
     {
         paramVector.push_back(jade::makeParameter(dfd::stepParameterSpec(stepIndex, dfd::StepParam::Active)));
@@ -258,15 +259,188 @@ void DrumFeatureDemonstratorAudio::prepareParameter(std::unique_ptr<juce::AudioP
 }
 
 
+namespace
+{
+constexpr int kTimerIntervalMs = 33;
+constexpr int kSkippedNoticeTicks = 90; // about 3 seconds
+constexpr int kMidiNotesPerOctave = 12;
+constexpr int kOctaveOffset = 1; // MIDI note 60 = C4
+constexpr float kRowFractionTop = 0.09f;
+constexpr float kRowFractionSecond = 0.09f;
+constexpr float kWaveformFraction = 0.22f;
+constexpr float kLabelFractionOfRow = 0.62f;
+constexpr float kFontFractionOfRow = 0.45f;
+constexpr int kBarTextBoxWidth = 80;
+constexpr int kBarTextBoxHeight = 20;
+constexpr float kMargin = 0.006f;
+const char* const kNoteNames[kMidiNotesPerOctave] = {"C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"};
+const juce::Colour kNoticeColour(0xFFE05050);
+
+juce::String noteNameOfMidiNote(int midiNote)
+{
+    const int octave = midiNote / kMidiNotesPerOctave - kOctaveOffset;
+    return juce::String(kNoteNames[midiNote % kMidiNotesPerOctave]) + juce::String(octave);
+}
+
+void setupLabel(juce::Label& label, const juce::String& text)
+{
+    label.setText(text, juce::dontSendNotification);
+    label.setJustificationType(juce::Justification::centredRight);
+}
+
+void setupBarSlider(juce::Slider& slider)
+{
+    slider.setSliderStyle(juce::Slider::LinearBar);
+    slider.setTextBoxStyle(juce::Slider::TextBoxLeft, false, kBarTextBoxWidth, kBarTextBoxHeight); // for the bar styles the text sits inside the bar
+}
+} // namespace
+
 DrumFeatureDemonstratorGUI::DrumFeatureDemonstratorGUI(DrumFeatureDemonstratorAudioProcessor& p, juce::AudioProcessorValueTreeState& apvts)
-:m_processor(p) ,m_apvts(apvts)
+:m_processor(p) ,m_apvts(apvts),
+ m_waveform(*apvts.getParameter(g_paramRegionStart.ID), *apvts.getParameter(g_paramRegionEnd.ID)),
+ m_stepGrid(apvts),
+ m_declickAttachment(apvts, g_paramDeclick.ID, m_declickButton),
+ m_syncAttachment(apvts, g_paramSyncToHost.ID, m_syncButton),
+ m_playAttachment(apvts, g_paramInternalPlay.ID, m_playButton),
+ m_baseNoteAttachment(apvts, g_paramBaseNote.ID, m_baseNoteSlider),
+ m_lengthAttachment(apvts, g_paramPatternLength.ID, m_lengthSlider),
+ m_bpmAttachment(apvts, g_paramInternalBpm.ID, m_bpmSlider)
 {
     m_loadButton.setButtonText("Load sample");
+    m_loadButton.setTooltip("Load a sample file (wav, aiff, flac, ogg). You can also drop a file onto the waveform.");
     m_loadButton.onClick = [this]() { chooseSampleFile(); };
     addAndMakeVisible(m_loadButton);
 
     m_sampleLabel.setText(m_processor.getSampleName(), juce::dontSendNotification);
     addAndMakeVisible(m_sampleLabel);
+
+    m_declickButton.setButtonText("Declick");
+    m_declickButton.setTooltip(jade::helpText(g_paramDeclick));
+    addAndMakeVisible(m_declickButton);
+
+    setupLabel(m_baseNoteLabel, "Base note");
+    setupBarSlider(m_baseNoteSlider);
+    m_baseNoteSlider.setTooltip(jade::helpText(g_paramBaseNote));
+    m_baseNoteSlider.textFromValueFunction = [](double value) { return noteNameOfMidiNote(static_cast<int>(std::lround(value))); };
+    m_baseNoteSlider.updateText();
+    addAndMakeVisible(m_baseNoteLabel);
+    addAndMakeVisible(m_baseNoteSlider);
+
+    setupLabel(m_lengthLabel, "Pattern");
+    setupBarSlider(m_lengthSlider);
+    m_lengthSlider.setTooltip(jade::helpText(g_paramPatternLength));
+    addAndMakeVisible(m_lengthLabel);
+    addAndMakeVisible(m_lengthSlider);
+
+    m_syncButton.setClickingTogglesState(true);
+    m_syncButton.setTooltip(jade::helpText(g_paramSyncToHost));
+    addAndMakeVisible(m_syncButton);
+
+    m_playButton.setClickingTogglesState(true);
+    m_playButton.setTooltip(jade::helpText(g_paramInternalPlay));
+    addAndMakeVisible(m_playButton);
+
+    setupLabel(m_tempoLabel, "Tempo");
+    addAndMakeVisible(m_tempoLabel);
+    m_hostBpmLabel.setJustificationType(juce::Justification::centredLeft);
+    addAndMakeVisible(m_hostBpmLabel);
+    setupBarSlider(m_bpmSlider);
+    m_bpmSlider.setTooltip(jade::helpText(g_paramInternalBpm));
+    addAndMakeVisible(m_bpmSlider);
+
+    m_noticeLabel.setJustificationType(juce::Justification::centredLeft);
+    m_noticeLabel.setColour(juce::Label::textColourId, kNoticeColour);
+    addAndMakeVisible(m_noticeLabel);
+
+    m_waveform.onFileDropped = [this](const juce::File& file) { loadSampleFile(file); };
+    addAndMakeVisible(m_waveform);
+    addAndMakeVisible(m_stepGrid);
+
+    m_lastSkippedCount = m_processor.m_algo.getSkippedSoundCount();
+    updateTempoControls(m_syncButton.getToggleState());
+    startTimerHz(1000 / kTimerIntervalMs);
+    timerCallback();
+}
+
+DrumFeatureDemonstratorGUI::~DrumFeatureDemonstratorGUI()
+{
+    stopTimer();
+}
+
+void DrumFeatureDemonstratorGUI::updateTempoControls(bool syncToHost)
+{
+    m_syncButton.setButtonText("Host sync");
+    if (syncToHost)
+    {
+        m_playButton.setButtonText("Host plays");
+    }
+    else if (m_playButton.getToggleState())
+    {
+        m_playButton.setButtonText("Pause");
+    }
+    else
+    {
+        m_playButton.setButtonText("Play");
+    }
+    m_playButton.setEnabled(syncToHost == false);
+    m_hostBpmLabel.setVisible(syncToHost);
+    m_bpmSlider.setVisible(syncToHost == false);
+}
+
+void DrumFeatureDemonstratorGUI::updateNotice()
+{
+    const juce::uint32 invalidMask = m_processor.m_algo.getInvalidStepMask();
+    const int skippedCount = m_processor.m_algo.getSkippedSoundCount();
+    if (skippedCount != m_lastSkippedCount)
+    {
+        m_lastSkippedCount = skippedCount;
+        m_noticeTicksLeft = kSkippedNoticeTicks;
+    }
+    if (invalidMask != 0)
+    {
+        m_noticeLabel.setText("Play to end impossible: sample longer than the pattern.", juce::dontSendNotification);
+    }
+    else if (m_noticeTicksLeft > 0)
+    {
+        m_noticeLabel.setText("Sound skipped: its start time had already passed.", juce::dontSendNotification);
+    }
+    else
+    {
+        m_noticeLabel.setText("", juce::dontSendNotification);
+    }
+    if (m_noticeTicksLeft > 0)
+    {
+        --m_noticeTicksLeft;
+    }
+}
+
+void DrumFeatureDemonstratorGUI::timerCallback()
+{
+    const bool syncToHost = m_syncButton.getToggleState();
+    updateTempoControls(syncToHost);
+    if (syncToHost)
+    {
+        if (m_processor.m_algo.isHostPositionAvailable())
+        {
+            m_hostBpmLabel.setText(juce::String(m_processor.m_algo.getDisplayedBpm(), 1) + " bpm (host)", juce::dontSendNotification);
+        }
+        else
+        {
+            m_hostBpmLabel.setText("host gives no beat position", juce::dontSendNotification);
+        }
+    }
+
+    std::shared_ptr<const dfd::SampleData> sample = m_processor.m_algo.getSampleForGui();
+    if (sample != m_shownSample)
+    {
+        m_shownSample = sample;
+        m_waveform.setSample(sample);
+        m_sampleLabel.setText(m_processor.getSampleName(), juce::dontSendNotification);
+    }
+    m_waveform.setDeclickEnabled(m_declickButton.getToggleState());
+    m_stepGrid.update(m_processor.m_algo.getCurrentStep(), m_processor.m_algo.getInvalidStepMask(),
+                      static_cast<int>(std::lround(m_lengthSlider.getValue())));
+    updateNotice();
 }
 
 bool DrumFeatureDemonstratorGUI::isInterestedInFileDrag(const juce::StringArray& files)
@@ -332,24 +506,51 @@ void DrumFeatureDemonstratorGUI::paint(juce::Graphics &g)
 
     // Take colours from the LookAndFeel (findColour), not fixed ones like juce::Colour(0xffffffff):
     // then your GUI follows the day/night theme (WITH_DAYNIGHT) and any other LookAndFeel.
-    g.setColour (getLookAndFeel().findColour (juce::Label::textColourId));
-    g.setFont (12.0f);
-    
-    juce::String text2display = "DrumFeatureDemonstrator V " + juce::String(PLUGIN_VERSION_MAJOR) + "." + juce::String(PLUGIN_VERSION_MINOR) + "." + juce::String(PLUGIN_VERSION_PATCH);
-    g.drawFittedText (text2display, getLocalBounds(), juce::Justification::bottomLeft, 1);
+    g.setColour (getLookAndFeel().findColour (juce::Label::textColourId).withAlpha(0.6f));
+    g.setFont (juce::jmax(10.0f, 0.016f * static_cast<float>(getHeight())));
+    juce::String text2display = "V " + juce::String(PLUGIN_VERSION_MAJOR) + "." + juce::String(PLUGIN_VERSION_MINOR) + "." + juce::String(PLUGIN_VERSION_PATCH);
+    g.drawFittedText (text2display, getLocalBounds(), juce::Justification::bottomRight, 1);
+}
 
+void DrumFeatureDemonstratorGUI::placeControlWithLabel(juce::Rectangle<int> area, juce::Label& label, juce::Component& control)
+{
+    label.setBounds(area.removeFromLeft(static_cast<int>(static_cast<float>(area.getWidth()) * kLabelFractionOfRow * 0.8f)));
+    control.setBounds(area);
 }
 
 void DrumFeatureDemonstratorGUI::resized()
 {
-	auto r = getLocalBounds();
-    
-    // if you have to place several components, use scaleFactor
-    //int width = r.getWidth();
-	//float scaleFactor = float(width)/g_minGuiSize_x;
+    auto r = getLocalBounds();
+    const int margin = static_cast<int>(kMargin * static_cast<float>(r.getWidth()));
+    r.reduce(margin, margin);
+    const int height = getHeight();
+    const int rowHeight = static_cast<int>(kRowFractionTop * static_cast<float>(height));
+    const juce::Font rowFont(juce::FontOptions(kFontFractionOfRow * static_cast<float>(rowHeight)));
+    for (juce::Label* label : {&m_sampleLabel, &m_baseNoteLabel, &m_lengthLabel, &m_tempoLabel, &m_hostBpmLabel, &m_noticeLabel})
+    {
+        label->setFont(rowFont);
+    }
 
-    const int buttonHeight = r.getHeight() / 6;
-    auto topRow = r.removeFromTop(buttonHeight);
-    m_loadButton.setBounds(topRow.removeFromLeft(r.getWidth() / 4));
-    m_sampleLabel.setBounds(topRow);
+    auto firstRow = r.removeFromTop(rowHeight);
+    const int unit = firstRow.getWidth() / 20;
+    m_loadButton.setBounds(firstRow.removeFromLeft(3 * unit).reduced(margin / 2, 0));
+    m_sampleLabel.setBounds(firstRow.removeFromLeft(5 * unit));
+    m_declickButton.setBounds(firstRow.removeFromLeft(3 * unit));
+    placeControlWithLabel(firstRow.removeFromLeft(4 * unit).reduced(margin / 2, 0), m_baseNoteLabel, m_baseNoteSlider);
+    placeControlWithLabel(firstRow.reduced(margin / 2, 0), m_lengthLabel, m_lengthSlider);
+
+    r.removeFromTop(margin);
+    auto secondRow = r.removeFromTop(rowHeight);
+    m_syncButton.setBounds(secondRow.removeFromLeft(3 * unit).reduced(margin / 2, 0));
+    m_playButton.setBounds(secondRow.removeFromLeft(3 * unit).reduced(margin / 2, 0));
+    auto tempoArea = secondRow.removeFromLeft(5 * unit).reduced(margin / 2, 0);
+    m_tempoLabel.setBounds(tempoArea.removeFromLeft(tempoArea.getWidth() / 3));
+    m_hostBpmLabel.setBounds(tempoArea);
+    m_bpmSlider.setBounds(tempoArea);
+    m_noticeLabel.setBounds(secondRow);
+
+    r.removeFromTop(margin);
+    m_waveform.setBounds(r.removeFromTop(static_cast<int>(kWaveformFraction * static_cast<float>(height))));
+    r.removeFromTop(margin);
+    m_stepGrid.setBounds(r);
 }
