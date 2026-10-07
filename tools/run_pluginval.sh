@@ -9,6 +9,7 @@
 # temporary home folder, so your real presets and settings are not touched.
 # A run fails if pluginval fails or if JUCE assertions occur (Debug builds print them).
 #
+# PLUGINVAL_EXTRA_ARGS: extra arguments for pluginval, e.g. "--skip-gui-tests" (see the note in DEVELOPMENT_LOG.md).
 # pluginval is taken from $PLUGINVAL, from the PATH, or downloaded once into
 # ~/.cache/pluginval.
 #
@@ -57,7 +58,7 @@ failed=0
 for i in $(seq 1 "$runs"); do
     home=$(mktemp -d)
     log=$logdir/run_$i.log
-    HOME=$home "$pluginval" --strictness-level 10 --validate "$plugin" > "$log" 2>&1
+    HOME=$home "$pluginval" --strictness-level 10 ${PLUGINVAL_EXTRA_ARGS:-} --validate "$plugin" > "$log" 2>&1
     rc=$?
     rm -rf "$home"
     assertions=$(grep -c "JUCE Assertion" "$log")
