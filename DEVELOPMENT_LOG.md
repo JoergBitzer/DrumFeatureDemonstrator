@@ -88,3 +88,9 @@ The author tried version 0.5.1 in Bitwig and reported: (1) drag and drop of a sa
 - **MIDI step entry:** a note-on that arrives while the transport stands (also from the on-screen keyboard) is put by the audio thread into a small lock-free FIFO; the GUI timer applies it to the selected step: note, velocity, and the step is switched on (with parameter gestures: undo/automation/red Save button). The sample is also heard. Notes that arrived while no editor was open are discarded when an editor opens. The selection does not advance by itself (decision: cursor keys do that; an auto-advance option is easy to add).
 - Checked with the Tester (new `--keys left,right,...` sends keys through the window peer): a note 67 (G4) with velocity 90 while stopped -> step 1 on, note G4, velocity 90, info "Step 1 set by MIDI: note G4, velocity 90"; `--keys right,right,right,down` moves the frame to step 4 (down wraps in a 16 step pattern). Not tested: real mouse hover/click and the real keyboard in a host.
 
+## Round 3: feedback of the author (2026-10-08)
+(1) The on-screen keyboard played the sample at the base note C4 when the key labelled C3 was pressed; (2) drag and drop from Thunar into the plug-in in Bitwig still does nothing (a file symbol is carried, but the symbol and the drop zone never change); (3) wish: the space key starts and stops the internal player.
+
+### Keyboard labels (branch `fix/keyboard-octave`, version 0.7.1)
+- Cause: JUCE's `MidiKeyboardComponent` labels MIDI note 60 as "C3" by default, while the base note, the step notes and the info line call it C4. Fix: `setOctaveForMiddleC(4)` (`g_octaveOfMiddleC` in `PluginSettings.h`). Checked with a Tester snapshot: a note 60 lights the key labelled C4 and the info line says "note C4".
+

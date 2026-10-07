@@ -22,6 +22,7 @@ DrumFeatureDemonstratorAudioProcessorEditor::DrumFeatureDemonstratorAudioProcess
 
 	addAndMakeVisible(m_presetGUI);
 #if WITH_MIDIKEYBOARD      
+	m_keyboard.setOctaveForMiddleC(g_octaveOfMiddleC); // note 60 is shown as C4, like the base note and the step notes
 	addAndMakeVisible(m_keyboard);
     addAndMakeVisible(m_wheels);    
 #endif
