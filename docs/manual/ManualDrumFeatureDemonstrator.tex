@@ -24,8 +24,15 @@
 \maketitle
 
 \section{Introduction}
-What does DrumFeatureDemonstrator do, and what is it good for? Two or three sentences for someone who
-has never seen it. Then, if needed, a warning (e.g. about loud sounds) and a personal note.
+DrumFeatureDemonstrator is a one-sample drum player with a step grid (1/16 notes, 8 to 32 steps). You load one
+sample (a drum hit, a cymbal, a reversed cymbal), choose the steps on which it is played, and change pitch,
+direction and loudness per step. The sample is also played from MIDI notes.
+
+The new thing is \textbf{play to end}. The plug-in knows exactly how long the sample sounds at the chosen
+pitch. A step in the mode \emph{reverse + play to end} is therefore started early, so that the sample
+\emph{ends exactly at the end of that step}. Put it on the last step before a beat, and a reversed
+cymbal leads into the next beat without any manual nudging, at any pitch and any tempo. The plug-in
+reads the beat position from the DAW, so it always stays in sync.
 
 \section{Installation}
 The downloaded file is a zip file. It contains the plug-in (.vst3; on macOS also the AU,
@@ -54,29 +61,59 @@ Linux:   /home/yourUSERNAME/.config/Jade_Hochschule/DrumFeatureDemonstrator
 
 \section{How to use}
 \begin{center}
-\includegraphics[width=0.8\textwidth]{images/GUI_Numbers.png}
+\includegraphics[width=\textwidth]{images/GUI.png}
 \end{center}
 \begin{enumerate}
-    \item \textbf{Preset handler}: Prev/Next step through the presets. To save a new preset,
-    type a name and press Save. Save turns red when you change a parameter of the displayed
-    preset; press it to update the preset. To delete a preset, delete its XML file.
-    \item \textbf{Day/night}: switches between the night (dark) and the day (light) theme.
-    \item \textbf{Your controls}: describe the parts of your GUI here (see section~\ref{sec:controls}
-    for the list of all controls).
+    \item \textbf{Load sample}: choose a sample file (wav, aiff, flac, ogg), or drop a file onto the
+    waveform. A copy is kept in the folder \texttt{Samples} next to the presets; the sample is stored with
+    your DAW project and referred to by its name in a preset.
+    \item \textbf{Waveform}: drag the two orange handles to set start and end of the part that is played.
+    With \textbf{Declick} switched on, a handle snaps to a zero crossing of the sample (no click at the edge).
+    \item \textbf{Base note}: the MIDI note at which the sample plays at its original speed (C4 = MIDI note 60).
+    MIDI notes (also the keyboard at the bottom) play the sample with the pitch relative to the base note and with velocity.
+    \item \textbf{Pattern}: length of the pattern in steps (8 to 32). Steps beyond the length are dimmed.
+    \item \textbf{Host sync}: on = the plug-in follows tempo and position of the DAW (it plays while the DAW plays);
+    off = internal beat with its own tempo and the \textbf{Play/Pause} button.
+    \item \textbf{Steps}: per step a button (sample on/off), below it the \textbf{mode button}
+    (click: forward $\rightarrow$ reverse $\rightarrow$ reverse + play to end $\rightarrow$ forward), and two small knobs:
+    left the pitch ($\pm$24 semitones relative to the base note), right the velocity (gain). The orange frame shows
+    the step that is playing.
+    \item \textbf{Preset handler} and \textbf{day/night}: as usual; Save turns red when you change a control.
+    Presets contain the pattern, the region and the name of the sample. Factory presets keep the sample you have loaded.
 \end{enumerate}
+
+\subsection{Play to end: what to know}
+\begin{itemize}
+    \item The sound ends at the \emph{end of the step} on which the mode is set. To lead into beat 1, set it on step 16 of a pattern of 16 steps.
+    \item If the start time has already passed (the transport starts or jumps into the run-up), the sound is
+    \emph{not} played and a notice appears.
+    \item Play to end is only possible if the sample (at its pitch) is not longer than the pattern. Otherwise the mode button
+    is outlined in red and a notice is shown: shorten the sample with the end handle, raise the pitch or lengthen the pattern.
+    \item Tempo changes during the run-up are not followed.
+    \item Forward + play to end is not offered; reverse the sample file beforehand if you need it.
+\end{itemize}
 
 \section{Controls}\label{sec:controls}
 All controls, their range and default value. Rest the mouse on a control to see its
-description as a tooltip.
+description as a tooltip. Every step $n$ (1 to 32) has four parameters (\texttt{Step}$nn$\texttt{Active},
+\texttt{Mode}, \texttt{Pitch}, \texttt{Velocity}); they are described once in the last rows of the table.
 
 \begin{center}
 \small
-% generated from the code: DrumFeatureDemonstrator_Tester --manual tex > controls.tex (see docs/HowToDoc.md)
 \input{controls}
 \end{center}
 
 \section{How it works}
-Optional: the idea behind the algorithm, in a few sentences and maybe a block diagram.
+For a step in the mode reverse + play to end the plug-in computes the \emph{duration} of the sample in host samples,
+\[
+  d = \frac{N}{r}, \qquad r = 2^{p/12}\,\frac{f_\mathrm{file}}{f_\mathrm{host}},
+\]
+with the number of samples $N$ of the played region, the pitch $p$ in semitones and the two sample rates. The start
+time is the end of the step minus $d$. Because $d$ is at most one pattern long, the start lies at most one pattern pass before
+the step, so the plug-in looks ahead one pass. The resampling is done by linear interpolation; pitch and duration change together.
+
+The drum samples used for the examples and tests come from MusicRadar (SampleRadar, free and royalty-free):
+\url{https://www.musicradar.com/news/tech/free-music-samples-royalty-free-loops-hits-and-multis-to-download-sampleradar}.
 
 \section{Source code}
 DrumFeatureDemonstrator is open source. You find the source code here:\newline

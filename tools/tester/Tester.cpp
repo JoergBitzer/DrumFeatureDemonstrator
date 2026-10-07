@@ -22,6 +22,8 @@
       --sample <file>       instrument: load this sample (wav, aiff, flac, ogg)
       --note <n>[,<vel>[,<seconds>]]   instrument: MIDI note n (velocity 1-127, default 100) at the time
                             given in seconds (default 0); repeatable
+      --save-state <file>   write the plugin state (as a DAW saves it) to a file, after everything else was set
+      --load-state <file>   restore such a state first (before --preset, --set, --sample)
       --list                print all parameters (ID, name, range, default) and exit
       --manual <md|tex>     print the list of controls as a Markdown or LaTeX table and exit
                             (range and default as the plugin shows them, description = the
@@ -224,7 +226,7 @@ int main(int argc, char* argv[])
     }
 
     // options
-    juce::String presetPath, audioPath, samplePath;
+    juce::String presetPath, audioPath, samplePath, saveStatePath, loadStatePath;
     juce::StringArray noteArgs;
     double seconds = 1.0;
     double rate = 48000.0;
@@ -240,6 +242,8 @@ int main(int argc, char* argv[])
         else if (a == "--audio" && hasValue)     audioPath = args[++i];
         else if (a == "--seconds" && hasValue)   seconds = args[++i].getDoubleValue();
         else if (a == "--blocksize" && hasValue) blockSize = juce::jmax(16, args[++i].getIntValue());
+        else if (a == "--save-state" && hasValue) saveStatePath = args[++i];
+        else if (a == "--load-state" && hasValue) loadStatePath = args[++i];
         else if (a == "--rate" && hasValue)      rate = args[++i].getDoubleValue();
         else if (a == "--sample" && hasValue)    samplePath = args[++i];
         else if (a == "--note" && hasValue)      noteArgs.add(args[++i]);
@@ -250,7 +254,18 @@ int main(int argc, char* argv[])
     if (!(mode == "render" && positional.size() == 3) && !(mode == "snapshot" && positional.size() == 2))
         return usage();
 
-    // preset and parameters
+    // state, preset and parameters
+    if (loadStatePath.isNotEmpty())
+    {
+        juce::MemoryBlock stateData;
+        if (!fileArg(loadStatePath).loadFileAsData(stateData))
+        {
+            std::cout << "Could not read state " << loadStatePath << "\n";
+            return 1;
+        }
+        processor->setStateInformation(stateData.getData(), (int) stateData.getSize());
+        juce::MessageManager::getInstance()->runDispatchLoopUntil(300); // a plugin may finish loading asynchronously
+    }
     if (presetPath.isNotEmpty() && !loadPreset(*processor, fileArg(presetPath)))
     {
         std::cout << "Could not read preset " << presetPath << "\n";
@@ -290,6 +305,18 @@ int main(int argc, char* argv[])
             std::cout << "Could not load sample " << samplePath << "\n";
             return 1;
         }
+        juce::MessageManager::getInstance()->runDispatchLoopUntil(100);
+    }
+    if (saveStatePath.isNotEmpty())
+    {
+        juce::MemoryBlock stateData;
+        processor->getStateInformation(stateData);
+        if (!fileArg(saveStatePath).replaceWithData(stateData.getData(), stateData.getSize()))
+        {
+            std::cout << "Could not write state " << saveStatePath << "\n";
+            return 1;
+        }
+        std::cout << "wrote state " << saveStatePath << " (" << stateData.getSize() << " bytes)\n";
     }
     std::vector<NoteEvent> notes;
     for (const auto& n : noteArgs)

@@ -435,6 +435,9 @@ void DrumFeatureDemonstratorGUI::timerCallback()
     {
         m_shownSample = sample;
         m_waveform.setSample(sample);
+    }
+    if (m_sampleLabel.getText() != m_processor.getSampleName())
+    {
         m_sampleLabel.setText(m_processor.getSampleName(), juce::dontSendNotification);
     }
     m_waveform.setDeclickEnabled(m_declickButton.getToggleState());

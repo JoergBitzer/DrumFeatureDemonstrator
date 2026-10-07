@@ -4,7 +4,7 @@ A one-sample drum player (instrument plugin: VST3, AU on macOS, Standalone) with
 so it can start a (reversed) sample so that it ends exactly at the end of its step, e.g. a reverse cymbal that leads
 into the next full beat.
 
-Status: work package W3 of [planning.md](planning.md) is done: load a sample (button or drop), play it from MIDI notes with pitch and velocity. The step sequencer and play to end follow.
+Status: work packages W1-W7 of [planning.md](planning.md) are done: sample loading (button or drop), waveform with start/end handles, 8-32 step grid with mode/pitch/velocity per step, **play to end**, host sync or internal beat, presets with sample, manual. Progress notes: [DEVELOPMENT_LOG.md](DEVELOPMENT_LOG.md).
 
 Made from the [AdvancedAudioTemplate](https://github.com/JoergBitzer/AdvancedAudioTemplate), branch AAT2.
 
