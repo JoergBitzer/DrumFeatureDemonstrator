@@ -14,7 +14,8 @@
 
 namespace dfd
 {
-class WaveformView : public juce::Component, public juce::SettableTooltipClient, public juce::FileDragAndDropTarget
+class WaveformView : public juce::Component, public juce::SettableTooltipClient, public juce::FileDragAndDropTarget,
+                     public juce::TextDragAndDropTarget
 {
 public:
     WaveformView(juce::RangedAudioParameter& startParameter, juce::RangedAudioParameter& endParameter);
@@ -35,6 +36,10 @@ public:
     void fileDragEnter(const juce::StringArray& files, int x, int y) override;
     void fileDragExit(const juce::StringArray& files) override;
 
+    // some file managers drop the path (or a file:// address) as text
+    bool isInterestedInTextDrag(const juce::String& text) override;
+    void textDropped(const juce::String& text, int x, int y) override;
+
 private:
     enum class Handle
     {
@@ -43,6 +48,7 @@ private:
         End
     };
 
+    static juce::File fileFromDroppedText(const juce::String& text);
     void rebuildPeaks();
     float fractionToX(float fraction) const;
     float xToFraction(float x) const;
