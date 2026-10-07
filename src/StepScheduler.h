@@ -1,0 +1,83 @@
+/**
+ * @file StepScheduler.h
+ * @brief pure scheduling of the step pattern, including "play to end" (see docs/design/W2-play-to-end.md)
+ *
+ * No JUCE types, no audio, no GUI: only numbers in, sound starts out, so it can be tested with known values.
+ */
+#pragma once
+
+#include <array>
+#include <vector>
+
+namespace dfd
+{
+constexpr int kMinSteps = 8;
+constexpr int kMaxSteps = 32;
+constexpr int kDefaultSteps = 16;
+constexpr int kStepsPerBeat = 4; // 1/16 notes
+constexpr double kSemitonesPerOctave = 12.0;
+constexpr double kSecondsPerMinute = 60.0;
+
+enum class StepMode
+{
+    Forward,
+    Reverse,
+    ReverseToEnd // reverse, started so that the sample ends at the end of the step
+};
+
+struct StepSettings
+{
+    bool active = false;
+    StepMode mode = StepMode::Forward;
+    double pitchSemitones = 0.0; // relative to the base note
+    float velocity = 1.0f;       // gain
+};
+
+struct Pattern
+{
+    int numSteps = kDefaultSteps;
+    std::array<StepSettings, kMaxSteps> steps;
+};
+
+struct SampleRegion
+{
+    double lengthInFileSamples = 0.0;
+    double fileSampleRate = 0.0;
+};
+
+struct Transport
+{
+    double bpm = 0.0;
+    double hostSampleRate = 0.0;
+};
+
+struct SoundStart
+{
+    int stepIndex = 0;
+    int sampleOffsetInBlock = 0;
+    double playbackRatio = 1.0;
+    bool reverse = false;
+    bool playsToEnd = false;
+    float gain = 1.0f;
+};
+
+// access by an int index (the array index type is unsigned)
+StepSettings& stepAt(Pattern& pattern, int stepIndex);
+const StepSettings& stepAt(const Pattern& pattern, int stepIndex);
+
+double playbackRatio(double pitchSemitones, double fileSampleRate, double hostSampleRate);
+double durationInHostSamples(const SampleRegion& region, double playbackRatio);
+double samplesPerBeat(const Transport& transport);
+double samplesPerStep(const Transport& transport);
+
+// true if the sample at the pitch of the step fits into one pattern (the condition for ReverseToEnd)
+bool isPlayToEndAllowed(const Pattern& pattern, const StepSettings& step, const SampleRegion& region, const Transport& transport);
+
+// Sound starts of the block [blockStartPpq, blockStartPpq + numSamples). The output vector is cleared first;
+// reserve its capacity beforehand (kMaxSteps is enough for one block), then no allocation happens.
+void scheduleBlock(const Pattern& pattern, const SampleRegion& region, const Transport& transport,
+                   double blockStartPpq, int numSamples, std::vector<SoundStart>& soundStarts);
+
+// number of ReverseToEnd sounds that should be running at positionPpq, but whose start is already gone
+int countMissedPlayToEnd(const Pattern& pattern, const SampleRegion& region, const Transport& transport, double positionPpq);
+} // namespace dfd

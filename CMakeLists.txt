@@ -17,7 +17,7 @@ endif()
 
 set(TARGET_NAME DrumFeatureDemonstrator)
 
-project(${TARGET_NAME} VERSION 0.0.1)
+project(${TARGET_NAME} VERSION 0.1.0)
 
 if(NOT TARGET juce::juce_core) # JUCE not added by a parent project: use the submodule
     if(NOT EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/JUCE/CMakeLists.txt")
@@ -94,6 +94,7 @@ target_sources(${TARGET_NAME}
         tools/MidiModPitchState.cpp
         tools/PresetHandler.cpp
         tools/SynchronBlockProcessor.cpp
+        src/StepScheduler.cpp
         )
 
 
@@ -166,4 +167,20 @@ if(AAT_BUILD_TESTER)
         JUCE_MODAL_LOOPS_PERMITTED=1)
     target_link_libraries(${TARGET_NAME}_Tester PRIVATE ${TARGET_NAME} juce::juce_audio_utils
         PUBLIC juce::juce_recommended_config_flags juce::juce_recommended_warning_flags)
+endif()
+
+# Unit tests of the pure code (scheduler, no GUI), run with CTest:
+#   cmake ... -DDFD_BUILD_UNIT_TESTS=ON ; cmake --build build --target DrumFeatureDemonstrator_UnitTests ; ctest --test-dir build
+option(DFD_BUILD_UNIT_TESTS "Build the unit tests of the pure code" OFF)
+if(DFD_BUILD_UNIT_TESTS)
+    enable_testing()
+    juce_add_console_app(${TARGET_NAME}_UnitTests PRODUCT_NAME "${TARGET_NAME}_UnitTests")
+    target_sources(${TARGET_NAME}_UnitTests PRIVATE
+        tests/UnitTestMain.cpp
+        tests/StepSchedulerTests.cpp
+        src/StepScheduler.cpp)
+    target_compile_definitions(${TARGET_NAME}_UnitTests PRIVATE JUCE_USE_CURL=0 JUCE_WEB_BROWSER=0)
+    target_link_libraries(${TARGET_NAME}_UnitTests PRIVATE juce::juce_core
+        PUBLIC juce::juce_recommended_config_flags juce::juce_recommended_warning_flags)
+    add_test(NAME StepSchedulerTests COMMAND ${TARGET_NAME}_UnitTests)
 endif()

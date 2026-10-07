@@ -7,6 +7,7 @@ Made from the AdvancedAudioTemplate, branch AAT2. **The plan, the decisions and 
 Until the skeleton work package (W1) is finished, parts of the code are still the template's example code.
 - `DrumFeatureDemonstrator.h/.cpp`: the parameters (structs), the algorithm (`DrumFeatureDemonstratorAudio`, fixed-size
   blocks via `SynchronBlockProcessor`) and the GUI (`DrumFeatureDemonstratorGUI`). Most work happens here.
+- `src/StepScheduler.*`: the pure scheduler of the step pattern and of play to end (no JUCE types); tests in `tests/` (`DrumFeatureDemonstrator_UnitTests`, CTest), design note in `docs/design/W2-play-to-end.md`.
 - `PluginProcessor.*`, `PluginEditor.*`: glue code (presets, state, window, preset bar); change rarely.
 - `PluginSettings.h`: block size, GUI size, preset-bar and keyboard layout.
 - `tools/`: template helpers -- `ParameterSpec.h`, `DayNightLookAndFeel.*`, `PresetHandler.*`,
@@ -21,6 +22,8 @@ git submodule update --init                      # JUCE (pinned submodule), once
 cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug -DAAT_BUILD_TESTER=ON
 cmake --build build --target DrumFeatureDemonstrator_VST3 DrumFeatureDemonstrator_Standalone DrumFeatureDemonstrator_Tester
 ```
+Unit tests of the pure code: add `-DDFD_BUILD_UNIT_TESTS=ON`, build `DrumFeatureDemonstrator_UnitTests`, run `ctest --test-dir build --output-on-failure`.
+**Builds use at most half of the cores** (`--parallel $(( $(nproc) / 2 ))`, the author works on the same machine).
 Develop with the Debug build (JUCE assertions are on); releases are Release builds made by CI.
 For the review in a DAW, build Release as well (a Debug build is slow there and stops at assertions):
 ```console
