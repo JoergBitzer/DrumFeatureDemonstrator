@@ -19,11 +19,13 @@
       --seconds <s>         snapshot: how long to play/wait before the snapshot (default 1)
       --blocksize <n>       block size (default 512)
       --rate <hz>           sample rate if there is no input file (default 48000)
-      --sample <file>       instrument: load this sample (wav, aiff, flac, ogg)
+      --sample <file>       instrument: load this sample (wav, aiff, flac, ogg); repeatable: each one replaces the one before
       --note <n>[,<vel>[,<seconds>]]   instrument: MIDI note n (velocity 1-127, default 100) at the time
                             given in seconds (default 0); repeatable
       --save-state <file>   write the plugin state (as a DAW saves it) to a file, after everything else was set
       --load-state <file>   restore such a state first (before --preset, --set, --sample)
+      --drop <file>         snapshot: simulate dropping this file onto the window (at the given --drop-at position) before the snapshot
+      --drop-at <x,y>       position of the simulated drop as fractions of the window size (default 0.5,0.3)
       --list                print all parameters (ID, name, range, default) and exit
       --manual <md|tex>     print the list of controls as a Markdown or LaTeX table and exit
                             (range and default as the plugin shows them, description = the
@@ -226,7 +228,8 @@ int main(int argc, char* argv[])
     }
 
     // options
-    juce::String presetPath, audioPath, samplePath, saveStatePath, loadStatePath;
+    juce::String presetPath, audioPath, saveStatePath, loadStatePath, dropPath, dropAt = "0.5,0.3";
+    juce::StringArray samplePaths;
     juce::StringArray noteArgs;
     double seconds = 1.0;
     double rate = 48000.0;
@@ -244,8 +247,10 @@ int main(int argc, char* argv[])
         else if (a == "--blocksize" && hasValue) blockSize = juce::jmax(16, args[++i].getIntValue());
         else if (a == "--save-state" && hasValue) saveStatePath = args[++i];
         else if (a == "--load-state" && hasValue) loadStatePath = args[++i];
+        else if (a == "--drop" && hasValue)      dropPath = args[++i];
+        else if (a == "--drop-at" && hasValue)   dropAt = args[++i];
         else if (a == "--rate" && hasValue)      rate = args[++i].getDoubleValue();
-        else if (a == "--sample" && hasValue)    samplePath = args[++i];
+        else if (a == "--sample" && hasValue)    samplePaths.add(args[++i]);
         else if (a == "--note" && hasValue)      noteArgs.add(args[++i]);
         else if (a.startsWith("--"))             { std::cout << "Unknown option " << a << "\n"; return usage(); }
         else                                     positional.add(a);
@@ -297,7 +302,7 @@ int main(int argc, char* argv[])
     processor->prepareToPlay(sampleRate, blockSize);
 
     // instrument: sample and notes
-    if (samplePath.isNotEmpty())
+    for (const auto& samplePath : samplePaths) // several: loaded one after the other, the last one stays
     {
         auto* drumPlugin = dynamic_cast<dfd::SampleLoadable*>(processor.get());
         if (drumPlugin == nullptr || !drumPlugin->loadSample(fileArg(samplePath)))
@@ -355,6 +360,26 @@ int main(int argc, char* argv[])
     editor->setVisible(true);
     editor->addToDesktop(0); // offscreen window: some components only paint with a peer
     process(*processor, audio, (int) (seconds * sampleRate), blockSize, nullptr, true, notes);
+    if (dropPath.isNotEmpty())
+    {
+        auto* peer = editor->getPeer();
+        if (peer == nullptr)
+        {
+            std::cout << "The editor has no window peer, cannot simulate a drop\n";
+            return 1;
+        }
+        juce::ComponentPeer::DragInfo info;
+        info.files.add(fileArg(dropPath).getFullPathName());
+        const auto fractions = juce::StringArray::fromTokens(dropAt, ",", "");
+        info.position = { (int) (fractions[0].getDoubleValue() * editor->getWidth()),
+                          (int) (fractions[1].getDoubleValue() * editor->getHeight()) };
+        const bool acceptedMove = peer->handleDragMove(info);
+        const bool acceptedDrop = peer->handleDragDrop(info);
+        std::cout << "simulated drop of " << dropPath << ": move accepted " << acceptedMove << ", drop accepted " << acceptedDrop << "\n";
+        process(*processor, audio, (int) (0.3 * sampleRate), blockSize, nullptr, true, {}); // let the GUI and the async loading settle
+        if (auto* loadable = dynamic_cast<dfd::SampleLoadable*>(processor.get()))
+            std::cout << "sample name now: " << loadable->getSampleName() << "\n";
+    }
     const auto image = editor->createComponentSnapshot(editor->getLocalBounds());
     processor->editorBeingDeleted(editor.get()); // as a DAW does, before deleting the editor
     editor.reset();

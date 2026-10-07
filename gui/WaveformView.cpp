@@ -252,6 +252,7 @@ void WaveformView::mouseUp(const juce::MouseEvent& event)
 
 bool WaveformView::isInterestedInFileDrag(const juce::StringArray& files)
 {
+    // any file: the loader decides whether it can read it, and the user gets a message if not
     return files.size() > 0;
 }
 
@@ -267,6 +268,31 @@ void WaveformView::fileDragExit(const juce::StringArray& files)
     juce::ignoreUnused(files);
     m_fileIsOver = false;
     repaint();
+}
+
+juce::File WaveformView::fileFromDroppedText(const juce::String& text)
+{
+    const juce::String trimmed = text.trim().unquoted();
+    if (trimmed.startsWithIgnoreCase("file://"))
+    {
+        return juce::URL(trimmed).getLocalFile();
+    }
+    return juce::File(trimmed);
+}
+
+bool WaveformView::isInterestedInTextDrag(const juce::String& text)
+{
+    return fileFromDroppedText(text).existsAsFile();
+}
+
+void WaveformView::textDropped(const juce::String& text, int x, int y)
+{
+    juce::ignoreUnused(x, y);
+    const juce::File file = fileFromDroppedText(text);
+    if (file.existsAsFile() && onFileDropped)
+    {
+        onFileDropped(file);
+    }
 }
 
 void WaveformView::filesDropped(const juce::StringArray& files, int x, int y)

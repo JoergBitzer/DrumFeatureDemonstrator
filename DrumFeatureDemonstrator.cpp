@@ -436,7 +436,11 @@ void DrumFeatureDemonstratorGUI::timerCallback()
         m_shownSample = sample;
         m_waveform.setSample(sample);
     }
-    if (m_sampleLabel.getText() != m_processor.getSampleName())
+    if (m_loadMessage.isNotEmpty() && m_sampleLabel.getText() == m_loadMessage)
+    {
+        // keep the message of a failed load until the next load
+    }
+    else if (m_sampleLabel.getText() != m_processor.getSampleName())
     {
         m_sampleLabel.setText(m_processor.getSampleName(), juce::dontSendNotification);
     }
@@ -448,19 +452,17 @@ void DrumFeatureDemonstratorGUI::timerCallback()
 
 bool DrumFeatureDemonstratorGUI::isInterestedInFileDrag(const juce::StringArray& files)
 {
-    for (const juce::String& path : files)
-    {
-        if (isSampleFileExtension(juce::File(path)))
-        {
-            return true;
-        }
-    }
-    return false;
+    return files.size() > 0;
 }
 
 void DrumFeatureDemonstratorGUI::filesDropped(const juce::StringArray& files, int x, int y)
 {
     juce::ignoreUnused(x, y);
+    if (files.size() == 0)
+    {
+        return;
+    }
+    // prefer a file with a known audio extension, otherwise try the first one (the loader knows better)
     for (const juce::String& path : files)
     {
         if (isSampleFileExtension(juce::File(path)))
@@ -469,6 +471,7 @@ void DrumFeatureDemonstratorGUI::filesDropped(const juce::StringArray& files, in
             return;
         }
     }
+    loadSampleFile(juce::File(files[0]));
 }
 
 bool DrumFeatureDemonstratorGUI::isSampleFileExtension(const juce::File& file)
@@ -493,13 +496,15 @@ void DrumFeatureDemonstratorGUI::chooseSampleFile()
 
 void DrumFeatureDemonstratorGUI::loadSampleFile(const juce::File& file)
 {
+    m_loadMessage = juce::String();
     if (m_processor.loadSample(file))
     {
         m_sampleLabel.setText(m_processor.getSampleName(), juce::dontSendNotification);
     }
     else
     {
-        m_sampleLabel.setText("Could not read " + file.getFileName(), juce::dontSendNotification);
+        m_loadMessage = "Could not read " + file.getFileName() + " (use wav, aiff, flac or ogg)";
+        m_sampleLabel.setText(m_loadMessage, juce::dontSendNotification);
     }
 }
 

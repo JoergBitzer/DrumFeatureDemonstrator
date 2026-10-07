@@ -251,4 +251,5 @@ private:
     std::shared_ptr<const dfd::SampleData> m_shownSample;
     int m_lastSkippedCount = 0;
     int m_noticeTicksLeft = 0;
+    juce::String m_loadMessage; // message of the last failed load, shown in the sample label
 };

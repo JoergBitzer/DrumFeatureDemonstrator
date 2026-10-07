@@ -69,3 +69,11 @@ merge way, so that we can go back to each state afterwards. Write all your comme
 
 **Where to look:** `planning.md` (plan, decisions, progress), this file (what happened, results, findings), `docs/design/W2-play-to-end.md` (the algorithm), `docs/manual/` (user manual).
 
+## Round 2: feedback of the author (2026-10-07, evening)
+The author tried version 0.5.1 in Bitwig and reported: (1) drag and drop of a sample does not work ("the plugin refuses a new sample"), (2) the pitch knob should be a MIDI note, (3) one display for the knob values is needed, the second knob must be called velocity (not gain); idea: when stopped, the current step is framed in yellow, can be moved with the cursor keys or a click, and MIDI input sets pitch and velocity of that step.
+
+### Drop of a sample (branch `fix/sample-drop`, version 0.5.2)
+- Investigation: the Tester got `--drop <file> [--drop-at x,y]`, which hands a drag-and-drop to the editor's window peer exactly as JUCE's X11 code does after an XDND drop (`handleDragMove`, `handleDragDrop`). Result: the waveform and the grid accept the drop, the sample is loaded, and a second drop **replaces** the first (name and waveform change) -- so the plug-in logic is not the problem. JUCE's X11 code answers every XDND position message with "accept" and only decides at the drop, so a "refusal" cannot come from our `isInterestedInFileDrag`. What cannot be tested here: the real XDND transfer from a file manager or from Bitwig to the plug-in window (host- and platform-dependent; a drag from inside Bitwig's own browser is not an XDND drag at all).
+- Changes anyway, to remove every plug-in-side reason for a refusal and to make a failure visible: the waveform and the GUI accept **any** file (the loader decides), the waveform also accepts a dropped **text** (path or file:// address, which some file managers send), and an unreadable file now shows "Could not read X (use wav, aiff, flac or ogg)" in the sample label (before, the message was overwritten after a moment).
+- To find out what really happens in Bitwig: does the waveform light up orange while the file is dragged over it? If yes, the drop arrives and the message in the sample label tells why it failed; if no, the host does not pass the drag to the plug-in window (then the Load button is the way).
+
