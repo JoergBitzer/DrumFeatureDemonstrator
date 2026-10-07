@@ -69,14 +69,14 @@ Linux:   /home/yourUSERNAME/.config/Jade_Hochschule/DrumFeatureDemonstrator
     your DAW project and referred to by its name in a preset.
     \item \textbf{Waveform}: drag the two orange handles to set start and end of the part that is played.
     With \textbf{Declick} switched on, a handle snaps to a zero crossing of the sample (no click at the edge).
-    \item \textbf{Base note}: the MIDI note at which the sample plays at its original speed (C4 = MIDI note 60).
+    \item \textbf{Base note}: the MIDI note at which the sample sits in the scale, i.e. plays at its original speed (C4 = MIDI note 60). Changing it transposes all steps and the keyboard.
     MIDI notes (also the keyboard at the bottom) play the sample with the pitch relative to the base note and with velocity.
     \item \textbf{Pattern}: length of the pattern in steps (8 to 32). Steps beyond the length are dimmed.
     \item \textbf{Host sync}: on = the plug-in follows tempo and position of the DAW (it plays while the DAW plays);
     off = internal beat with its own tempo and the \textbf{Play/Pause} button.
     \item \textbf{Steps}: per step a button (sample on/off), below it the \textbf{mode button}
     (click: forward $\rightarrow$ reverse $\rightarrow$ reverse + play to end $\rightarrow$ forward), and two small knobs:
-    left the pitch ($\pm$24 semitones relative to the base note), right the velocity (gain). The orange frame shows
+    left the note (a MIDI note, shown as e.g. C4; the sample sounds at its original pitch when the note equals the base note), right the velocity (MIDI velocity 1 to 127). The orange frame shows
     the step that is playing.
     \item \textbf{Preset handler} and \textbf{day/night}: as usual; Save turns red when you change a control.
     Presets contain the pattern, the region and the name of the sample. Factory presets keep the sample you have loaded.
@@ -96,7 +96,7 @@ Linux:   /home/yourUSERNAME/.config/Jade_Hochschule/DrumFeatureDemonstrator
 \section{Controls}\label{sec:controls}
 All controls, their range and default value. Rest the mouse on a control to see its
 description as a tooltip. Every step $n$ (1 to 32) has four parameters (\texttt{Step}$nn$\texttt{Active},
-\texttt{Mode}, \texttt{Pitch}, \texttt{Velocity}); they are described once in the last rows of the table.
+\texttt{Mode}, \texttt{Note}, \texttt{Velocity}); they are described once in the last rows of the table.
 
 \begin{center}
 \small
@@ -108,7 +108,7 @@ For a step in the mode reverse + play to end the plug-in computes the \emph{dura
 \[
   d = \frac{N}{r}, \qquad r = 2^{p/12}\,\frac{f_\mathrm{file}}{f_\mathrm{host}},
 \]
-with the number of samples $N$ of the played region, the pitch $p$ in semitones and the two sample rates. The start
+with the number of samples $N$ of the played region, the pitch $p$ in semitones (the note of the step minus the base note) and the two sample rates. The start
 time is the end of the step minus $d$. Because $d$ is at most one pattern long, the start lies at most one pattern pass before
 the step, so the plug-in looks ahead one pass. The resampling is done by linear interpolation; pitch and duration change together.
 

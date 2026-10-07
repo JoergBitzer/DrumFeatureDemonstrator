@@ -197,7 +197,7 @@ StepColumn::StepColumn(int stepIndex, juce::AudioProcessorValueTreeState& apvts)
     : m_stepIndex(stepIndex),
       m_modeButton(*apvts.getParameter(stepParameterId(stepIndex, StepParam::Mode))),
       m_stepAttachment(apvts, stepParameterId(stepIndex, StepParam::Active), m_stepButton),
-      m_pitchAttachment(apvts, stepParameterId(stepIndex, StepParam::Pitch), m_pitchSlider),
+      m_noteAttachment(apvts, stepParameterId(stepIndex, StepParam::Note), m_noteSlider),
       m_velocityAttachment(apvts, stepParameterId(stepIndex, StepParam::Velocity), m_velocitySlider)
 {
     m_stepButton.setClickingTogglesState(true);
@@ -207,13 +207,13 @@ StepColumn::StepColumn(int stepIndex, juce::AudioProcessorValueTreeState& apvts)
     addAndMakeVisible(m_stepButton);
     addAndMakeVisible(m_modeButton);
 
-    for (juce::Slider* slider : {&m_pitchSlider, &m_velocitySlider})
+    for (juce::Slider* slider : {&m_noteSlider, &m_velocitySlider})
     {
         slider->setSliderStyle(juce::Slider::RotaryHorizontalVerticalDrag);
         slider->setTextBoxStyle(juce::Slider::NoTextBox, false, 0, 0);
         addAndMakeVisible(slider);
     }
-    m_pitchSlider.setTooltip(stepParameterSpec(stepIndex, StepParam::Pitch).help);
+    m_noteSlider.setTooltip(stepParameterSpec(stepIndex, StepParam::Note).help);
     m_velocitySlider.setTooltip(stepParameterSpec(stepIndex, StepParam::Velocity).help);
     updateModeButton();
 }
@@ -264,7 +264,7 @@ void StepColumn::resized()
     m_modeButton.setBounds(area.removeFromTop(modeHeight).reduced(gap, 0));
     area.removeFromTop(gap);
     const int knobWidth = area.getWidth() / 2;
-    m_pitchSlider.setBounds(area.removeFromLeft(knobWidth));
+    m_noteSlider.setBounds(area.removeFromLeft(knobWidth));
     m_velocitySlider.setBounds(area);
 }
 

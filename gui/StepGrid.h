@@ -65,10 +65,10 @@ private:
     int m_stepIndex;
     StepButton m_stepButton;
     ModeButton m_modeButton;
-    juce::Slider m_pitchSlider;
+    juce::Slider m_noteSlider;
     juce::Slider m_velocitySlider;
     juce::AudioProcessorValueTreeState::ButtonAttachment m_stepAttachment;
-    juce::AudioProcessorValueTreeState::SliderAttachment m_pitchAttachment;
+    juce::AudioProcessorValueTreeState::SliderAttachment m_noteAttachment;
     juce::AudioProcessorValueTreeState::SliderAttachment m_velocityAttachment;
 };
 

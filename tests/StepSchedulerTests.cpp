@@ -3,6 +3,7 @@
 
 #include <juce_core/juce_core.h>
 
+#include "../src/NoteNames.h"
 #include "../src/StepScheduler.h"
 
 namespace
@@ -34,7 +35,7 @@ void setStep(dfd::Pattern& pattern, int stepIndex, dfd::StepMode mode, double pi
 {
     dfd::stepAt(pattern, stepIndex).active = true;
     dfd::stepAt(pattern, stepIndex).mode = mode;
-    dfd::stepAt(pattern, stepIndex).pitchSemitones = pitch;
+    dfd::stepAt(pattern, stepIndex).noteNumber = pattern.baseNote + pitch;
 }
 
 // absolute start position of a sound in host samples, relative to ppq 0
@@ -60,6 +61,8 @@ public:
         testLengthLimit();
         testInactiveAndOutOfRangeSteps();
         testMissedSounds();
+        testNotesRelativeToTheBaseNote();
+        testNoteNames();
         testVeryLongBlockStaysWithinTheLimit();
         testGainAndBadInput();
     }
@@ -285,11 +288,11 @@ private:
         expect(dfd::isPlayToEndAllowed(pattern, dfd::stepAt(pattern, 4), tooLong, transport) == false);
 
         // a higher pitch makes it fit again
-        dfd::stepAt(pattern, 4).pitchSemitones = 12.0;
+        dfd::stepAt(pattern, 4).noteNumber = pattern.baseNote + 12.0;
         expect(dfd::isPlayToEndAllowed(pattern, dfd::stepAt(pattern, 4), tooLong, transport));
 
         // an invalid step is not scheduled
-        dfd::stepAt(pattern, 4).pitchSemitones = 0.0;
+        dfd::stepAt(pattern, 4).noteNumber = pattern.baseNote;
         std::vector<dfd::SoundStart> soundStarts;
         soundStarts.reserve(dfd::kMaxSteps);
         dfd::scheduleBlock(pattern, tooLong, transport, 0.0, 400000, soundStarts);
@@ -350,12 +353,49 @@ private:
         expect(static_cast<const void*>(soundStarts.data()) == firstElement);
     }
 
+    void testNotesRelativeToTheBaseNote()
+    {
+        beginTest("a step note is relative to the base note of the pattern");
+        dfd::Pattern pattern;
+        dfd::StepSettings& step = dfd::stepAt(pattern, 0);
+        step.active = true;
+        step.noteNumber = 60.0;
+        const dfd::SampleRegion region = makeRegion(1000.0, kRate48k);
+        const dfd::Transport transport = makeTransport(kBpm120, kRate48k);
+        std::vector<dfd::SoundStart> soundStarts;
+        soundStarts.reserve(dfd::kMaxSoundStartsPerBlock);
+
+        dfd::scheduleBlock(pattern, region, transport, 0.0, 100, soundStarts); // base note 60, step note 60: original speed
+        expectEquals(static_cast<int>(soundStarts.size()), 1);
+        expectWithinAbsoluteError(soundStarts[0].playbackRatio, 1.0, kTinyTolerance);
+
+        pattern.baseNote = 48.0; // the sample sits an octave lower: note 60 is an octave above it
+        dfd::scheduleBlock(pattern, region, transport, 0.0, 100, soundStarts);
+        expectWithinAbsoluteError(soundStarts[0].playbackRatio, 2.0, kTinyTolerance);
+
+        step.noteNumber = 41.0; // 7 semitones below 48
+        dfd::scheduleBlock(pattern, region, transport, 0.0, 100, soundStarts);
+        expectWithinAbsoluteError(soundStarts[0].playbackRatio, std::pow(2.0, -7.0 / 12.0), kTinyTolerance);
+    }
+
+    void testNoteNames()
+    {
+        beginTest("note names");
+        expectEquals(juce::String(dfd::noteName(60)), juce::String("C4"));
+        expectEquals(juce::String(dfd::noteName(61)), juce::String("C#4"));
+        expectEquals(juce::String(dfd::noteName(69)), juce::String("A4"));
+        expectEquals(juce::String(dfd::noteName(12)), juce::String("C0"));
+        expectEquals(juce::String(dfd::noteName(11)), juce::String("B-1"));
+        expectEquals(juce::String(dfd::noteName(0)), juce::String("C-1"));
+        expectEquals(juce::String(dfd::noteName(127)), juce::String("G9"));
+    }
+
     void testGainAndBadInput()
     {
         beginTest("gain is the velocity, bad input gives no sounds");
         dfd::Pattern pattern;
         setStep(pattern, 0, dfd::StepMode::Forward, 0.0);
-        dfd::stepAt(pattern, 0).velocity = 0.5f;
+        dfd::stepAt(pattern, 0).velocity = dfd::kMaxMidiVelocity * 0.5f;
         const dfd::SampleRegion region = makeRegion(1000.0, kRate48k);
         const dfd::Transport transport = makeTransport(kBpm120, kRate48k);
         std::vector<dfd::SoundStart> soundStarts;

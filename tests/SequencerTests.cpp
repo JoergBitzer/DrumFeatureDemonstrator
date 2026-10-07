@@ -37,7 +37,7 @@ void setStep(dfd::Pattern& pattern, int stepIndex, dfd::StepMode mode, double pi
     dfd::StepSettings& step = dfd::stepAt(pattern, stepIndex);
     step.active = true;
     step.mode = mode;
-    step.pitchSemitones = pitch;
+    step.noteNumber = pattern.baseNote + pitch;
 }
 
 int totalSounds(dfd::Sequencer& sequencer, const dfd::Pattern& pattern, const dfd::SampleRegion& region,

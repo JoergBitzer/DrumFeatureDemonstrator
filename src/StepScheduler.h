@@ -18,6 +18,8 @@ constexpr int kStepsPerBeat = 4; // 1/16 notes
 constexpr int kMaxSoundStartsPerBlock = 256; // scheduleBlock stops here, so a reserved output vector never reallocates
 constexpr double kSemitonesPerOctave = 12.0;
 constexpr double kSecondsPerMinute = 60.0;
+constexpr double kDefaultBaseNote = 60.0; // MIDI note of the original pitch of the sample (C4)
+constexpr float kMaxMidiVelocity = 127.0f;
 
 enum class StepMode
 {
@@ -30,13 +32,14 @@ struct StepSettings
 {
     bool active = false;
     StepMode mode = StepMode::Forward;
-    double pitchSemitones = 0.0; // relative to the base note
-    float velocity = 1.0f;       // gain
+    double noteNumber = kDefaultBaseNote; // MIDI note: the sample sounds at its original pitch if it equals the base note
+    float velocity = kMaxMidiVelocity;    // MIDI velocity 1 - 127, the gain is velocity / 127
 };
 
 struct Pattern
 {
     int numSteps = kDefaultSteps;
+    double baseNote = kDefaultBaseNote;
     std::array<StepSettings, kMaxSteps> steps;
 };
 
@@ -68,6 +71,9 @@ int numUsedSteps(const Pattern& pattern);
 // access by an int index (the array index type is unsigned)
 StepSettings& stepAt(Pattern& pattern, int stepIndex);
 const StepSettings& stepAt(const Pattern& pattern, int stepIndex);
+
+// semitones of the step relative to the base note of the pattern
+double stepSemitones(const Pattern& pattern, const StepSettings& step);
 
 double playbackRatio(double pitchSemitones, double fileSampleRate, double hostSampleRate);
 double durationInHostSamples(const SampleRegion& region, double playbackRatio);

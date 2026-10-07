@@ -7,7 +7,7 @@ namespace
 constexpr int kDigitsInStepNumber = 2;
 const char* const kActiveSuffix = "Active";
 const char* const kModeSuffix = "Mode";
-const char* const kPitchSuffix = "Pitch";
+const char* const kNoteSuffix = "Note";
 const char* const kVelocitySuffix = "Velocity";
 
 std::string stepNumberText(int stepIndex)
@@ -28,8 +28,8 @@ const char* suffixOf(StepParam param)
         return kActiveSuffix;
     case StepParam::Mode:
         return kModeSuffix;
-    case StepParam::Pitch:
-        return kPitchSuffix;
+    case StepParam::Note:
+        return kNoteSuffix;
     case StepParam::Velocity:
         return kVelocitySuffix;
     }
@@ -63,22 +63,21 @@ ParameterSpec stepParameterSpec(int stepIndex, StepParam param)
         spec.defaultValue = kModeForward;
         spec.help = "0 = forward, 1 = reverse, 2 = reverse and play to end (the sample ends exactly at the end of this step).";
         break;
-    case StepParam::Pitch:
-        spec.name = stepName + " pitch";
-        spec.unitName = "st";
-        spec.minValue = -kMaxPitchSemitones;
-        spec.maxValue = kMaxPitchSemitones;
-        spec.defaultValue = 0.0f;
-        spec.numDecimalPlaces = 1;
-        spec.help = "Pitch of this step in semitones, relative to the base note.";
+    case StepParam::Note:
+        spec.name = stepName + " note";
+        spec.minValue = kMinStepNote;
+        spec.maxValue = kMaxStepNote;
+        spec.defaultValue = kDefaultStepNote;
+        spec.numDecimalPlaces = 0;
+        spec.help = "MIDI note of this step (60 = C4). The sample sounds at its original pitch when the note equals the base note.";
         break;
     case StepParam::Velocity:
         spec.name = stepName + " velocity";
-        spec.minValue = 0.0f;
-        spec.maxValue = 1.0f;
-        spec.defaultValue = 1.0f;
-        spec.numDecimalPlaces = 2;
-        spec.help = "Gain of this step (0 - 1).";
+        spec.minValue = kMinVelocity;
+        spec.maxValue = kMaxVelocity;
+        spec.defaultValue = kDefaultVelocity;
+        spec.numDecimalPlaces = 0;
+        spec.help = "MIDI velocity of this step (1 - 127); the volume is velocity / 127.";
         break;
     }
     return spec;
