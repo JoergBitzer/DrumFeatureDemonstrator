@@ -45,6 +45,46 @@ void DrumFeatureDemonstratorAudio::setSample(std::shared_ptr<const dfd::SampleDa
     m_sampleHolder.setSample(std::move(sample));
 }
 
+void DrumFeatureDemonstratorAudio::collectStepEntries(const juce::MidiBuffer& midiMessages)
+{
+    for (const juce::MidiMessageMetadata metadata : midiMessages)
+    {
+        const juce::MidiMessage message = metadata.getMessage();
+        if (message.isNoteOn() == false)
+        {
+            continue;
+        }
+        int startIndex1 = 0;
+        int blockSize1 = 0;
+        int startIndex2 = 0;
+        int blockSize2 = 0;
+        m_stepEntryFifo.prepareToWrite(1, startIndex1, blockSize1, startIndex2, blockSize2);
+        if (blockSize1 > 0)
+        {
+            m_stepEntries[static_cast<std::size_t>(startIndex1)] = message.getNoteNumber() + (message.getVelocity() << kVelocityShift);
+            m_stepEntryFifo.finishedWrite(1);
+        }
+    }
+}
+
+bool DrumFeatureDemonstratorAudio::popStepEntry(int& noteNumber, int& velocity)
+{
+    int startIndex1 = 0;
+    int blockSize1 = 0;
+    int startIndex2 = 0;
+    int blockSize2 = 0;
+    m_stepEntryFifo.prepareToRead(1, startIndex1, blockSize1, startIndex2, blockSize2);
+    if (blockSize1 == 0)
+    {
+        return false;
+    }
+    const int entry = m_stepEntries[static_cast<std::size_t>(startIndex1)];
+    m_stepEntryFifo.finishedRead(1);
+    noteNumber = entry % (1 << kVelocityShift);
+    velocity = entry >> kVelocityShift;
+    return true;
+}
+
 void DrumFeatureDemonstratorAudio::addNoteEvents(const juce::MidiBuffer& midiMessages, const dfd::SampleData& sample,
                                                  int regionStart, int regionEnd)
 {
@@ -208,6 +248,10 @@ int DrumFeatureDemonstratorAudio::processSynchronBlock(juce::AudioBuffer<float> 
         m_skippedSoundCount += result.missedPlayToEnd;
     }
     updateInvalidSteps(pattern, region, transport.bpm);
+    if (result.currentStep < 0)
+    {
+        collectStepEntries(midiMessages); // the transport stands: notes also set the selected step
+    }
 
     if (sample == nullptr)
     {
@@ -346,6 +390,11 @@ DrumFeatureDemonstratorGUI::DrumFeatureDemonstratorGUI(DrumFeatureDemonstratorAu
     m_bpmSlider.setTooltip(jade::helpText(g_paramInternalBpm));
     addAndMakeVisible(m_bpmSlider);
 
+    m_infoLabel.setJustificationType(juce::Justification::centredLeft);
+    m_infoLabel.setText("Hover over or turn a control to see its value here. Cursor keys or a click select a step; MIDI notes set its note and velocity while the transport stands.", juce::dontSendNotification);
+    addAndMakeVisible(m_infoLabel);
+    m_stepGrid.onInfo = [this](const juce::String& text) { showInfo(text); };
+
     m_noticeLabel.setJustificationType(juce::Justification::centredLeft);
     m_noticeLabel.setColour(juce::Label::textColourId, kNoticeColour);
     addAndMakeVisible(m_noticeLabel);
@@ -354,6 +403,12 @@ DrumFeatureDemonstratorGUI::DrumFeatureDemonstratorGUI(DrumFeatureDemonstratorAu
     addAndMakeVisible(m_waveform);
     addAndMakeVisible(m_stepGrid);
 
+    int staleNote = 0;
+    int staleVelocity = 0;
+    while (m_processor.m_algo.popStepEntry(staleNote, staleVelocity))
+    {
+        // notes that arrived while no editor was open must not change a step now
+    }
     m_lastSkippedCount = m_processor.m_algo.getSkippedSoundCount();
     updateTempoControls(m_syncButton.getToggleState());
     startTimerHz(1000 / kTimerIntervalMs);
@@ -412,8 +467,87 @@ void DrumFeatureDemonstratorGUI::updateNotice()
     }
 }
 
+void DrumFeatureDemonstratorGUI::showInfo(const juce::String& text)
+{
+    if (text.isNotEmpty())
+    {
+        m_infoLabel.setText(text, juce::dontSendNotification);
+    }
+}
+
+int DrumFeatureDemonstratorGUI::currentPatternLength() const
+{
+    return static_cast<int>(std::lround(m_lengthSlider.getValue()));
+}
+
+void DrumFeatureDemonstratorGUI::setParameterWithGesture(const juce::String& parameterId, float value)
+{
+    if (juce::RangedAudioParameter* parameter = m_apvts.getParameter(parameterId))
+    {
+        parameter->beginChangeGesture();
+        parameter->setValueNotifyingHost(parameter->convertTo0to1(value));
+        parameter->endChangeGesture();
+    }
+}
+
+void DrumFeatureDemonstratorGUI::applyStepEntries()
+{
+    int note = 0;
+    int velocity = 0;
+    while (m_processor.m_algo.popStepEntry(note, velocity))
+    {
+        const int stepIndex = m_stepGrid.getSelectedStep();
+        const float clampedNote = juce::jlimit(dfd::kMinStepNote, dfd::kMaxStepNote, static_cast<float>(note));
+        const float clampedVelocity = juce::jlimit(dfd::kMinVelocity, dfd::kMaxVelocity, static_cast<float>(velocity));
+        setParameterWithGesture(juce::String(dfd::stepParameterId(stepIndex, dfd::StepParam::Active)), 1.0f);
+        setParameterWithGesture(juce::String(dfd::stepParameterId(stepIndex, dfd::StepParam::Note)), clampedNote);
+        setParameterWithGesture(juce::String(dfd::stepParameterId(stepIndex, dfd::StepParam::Velocity)), clampedVelocity);
+        showInfo("Step " + juce::String(stepIndex + 1) + " set by MIDI: note " + juce::String(dfd::noteName(static_cast<int>(clampedNote)))
+                 + ", velocity " + juce::String(static_cast<int>(clampedVelocity)));
+    }
+}
+
+bool DrumFeatureDemonstratorGUI::keyPressed(const juce::KeyPress& key, juce::Component* originatingComponent)
+{
+    juce::ignoreUnused(originatingComponent);
+    constexpr int kStepsPerRowOfGrid = 16;
+    const int length = currentPatternLength();
+    if (key == juce::KeyPress::leftKey)
+    {
+        m_stepGrid.moveSelectedStep(-1, length);
+    }
+    else if (key == juce::KeyPress::rightKey)
+    {
+        m_stepGrid.moveSelectedStep(1, length);
+    }
+    else if (key == juce::KeyPress::upKey)
+    {
+        m_stepGrid.moveSelectedStep(-kStepsPerRowOfGrid, length);
+    }
+    else if (key == juce::KeyPress::downKey)
+    {
+        m_stepGrid.moveSelectedStep(kStepsPerRowOfGrid, length);
+    }
+    else if (key == juce::KeyPress::homeKey)
+    {
+        m_stepGrid.setSelectedStep(0);
+    }
+    else if (key == juce::KeyPress::endKey)
+    {
+        m_stepGrid.setSelectedStep(length - 1);
+    }
+    else
+    {
+        return false;
+    }
+    showInfo("Selected step " + juce::String(m_stepGrid.getSelectedStep() + 1));
+    timerCallback();
+    return true;
+}
+
 void DrumFeatureDemonstratorGUI::timerCallback()
 {
+    applyStepEntries();
     const bool syncToHost = m_syncButton.getToggleState();
     updateTempoControls(syncToHost);
     if (syncToHost)
@@ -532,7 +666,7 @@ void DrumFeatureDemonstratorGUI::resized()
     const int height = getHeight();
     const int rowHeight = static_cast<int>(kRowFractionTop * static_cast<float>(height));
     const juce::Font rowFont(juce::FontOptions(kFontFractionOfRow * static_cast<float>(rowHeight)));
-    for (juce::Label* label : {&m_sampleLabel, &m_baseNoteLabel, &m_lengthLabel, &m_tempoLabel, &m_hostBpmLabel, &m_noticeLabel})
+    for (juce::Label* label : {&m_sampleLabel, &m_baseNoteLabel, &m_lengthLabel, &m_tempoLabel, &m_hostBpmLabel, &m_noticeLabel, &m_infoLabel})
     {
         label->setFont(rowFont);
     }
@@ -558,5 +692,7 @@ void DrumFeatureDemonstratorGUI::resized()
     r.removeFromTop(margin);
     m_waveform.setBounds(r.removeFromTop(static_cast<int>(kWaveformFraction * static_cast<float>(height))));
     r.removeFromTop(margin);
+    const int infoHeight = static_cast<int>(0.8f * static_cast<float>(rowHeight));
+    m_infoLabel.setBounds(r.removeFromBottom(infoHeight));
     m_stepGrid.setBounds(r);
 }

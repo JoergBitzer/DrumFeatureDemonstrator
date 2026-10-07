@@ -78,9 +78,18 @@ Linux:   /home/yourUSERNAME/.config/Jade_Hochschule/DrumFeatureDemonstrator
     (click: forward $\rightarrow$ reverse $\rightarrow$ reverse + play to end $\rightarrow$ forward), and two small knobs:
     left the note (a MIDI note, shown as e.g. C4; the sample sounds at its original pitch when the note equals the base note), right the velocity (MIDI velocity 1 to 127). The orange frame shows
     the step that is playing.
+    \item \textbf{Info line} (below the steps): shows the value of the control under the mouse and of the control you change,
+    e.g. ``Step 5 note: E4 (MIDI note 64)'' -- the knobs have no edit fields.
     \item \textbf{Preset handler} and \textbf{day/night}: as usual; Save turns red when you change a control.
     Presets contain the pattern, the region and the name of the sample. Factory presets keep the sample you have loaded.
 \end{enumerate}
+
+\subsection{Selecting a step and entering notes}
+While the transport stands (the DAW is stopped, or the internal beat is paused) the \emph{selected step} is framed in yellow; while
+the plug-in plays, the frame follows the playing step. Click into a step (or use the cursor keys: left/right $\pm$1 step,
+up/down $\pm$16 steps, Home/End first/last step) to select it. A \textbf{MIDI note} (from the keyboard at the bottom of the window,
+or from your MIDI keyboard) sets the \textbf{note and the velocity} of the selected step and switches the step on; the sample
+is also heard. The selection does not move by itself; use the cursor keys to go to the next step.
 
 \subsection{Play to end: what to know}
 \begin{itemize}

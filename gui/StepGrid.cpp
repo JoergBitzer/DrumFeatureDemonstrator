@@ -2,6 +2,8 @@
 
 #include <cmath>
 
+#include "../src/NoteNames.h"
+
 namespace dfd
 {
 namespace
@@ -29,7 +31,7 @@ constexpr float kOffMix = 0.10f;   // how far an off button moves from the backg
 constexpr float kBeatMix = 0.20f;
 constexpr float kModeMix = 0.14f;
 const juce::Colour kInvalidColour(0xFFE05050);
-const juce::Colour kCurrentColour(0xFFF0A030);
+const juce::Colour kCurrentColour(0xFFF2D43C); // yellow frame of the current / selected step
 
 juce::String stepName(int stepIndex)
 {
@@ -53,6 +55,11 @@ ModeButton::ModeButton(juce::RangedAudioParameter& parameter)
 float ModeButton::currentMode() const
 {
     return m_value;
+}
+
+int ModeButton::getMode() const
+{
+    return static_cast<int>(std::lround(m_value));
 }
 
 void ModeButton::setStepActive(bool isActive)
@@ -216,6 +223,70 @@ StepColumn::StepColumn(int stepIndex, juce::AudioProcessorValueTreeState& apvts)
     m_noteSlider.setTooltip(stepParameterSpec(stepIndex, StepParam::Note).help);
     m_velocitySlider.setTooltip(stepParameterSpec(stepIndex, StepParam::Velocity).help);
     updateModeButton();
+
+    // mouse events of all children come here: a click selects the step, hovering and changing show the value in the info line
+    addMouseListener(this, true);
+    m_noteSlider.onValueChange = [this]() { reportControl(&m_noteSlider); };
+    m_velocitySlider.onValueChange = [this]() { reportControl(&m_velocitySlider); };
+}
+
+juce::String StepColumn::describeControl(const juce::Component* control) const
+{
+    const juce::String stepText = "Step " + juce::String(m_stepIndex + 1);
+    if (control == &m_noteSlider)
+    {
+        const int note = static_cast<int>(std::lround(m_noteSlider.getValue()));
+        return stepText + " note: " + juce::String(noteName(note)) + " (MIDI note " + juce::String(note) + ")";
+    }
+    if (control == &m_velocitySlider)
+    {
+        return stepText + " velocity: " + juce::String(static_cast<int>(std::lround(m_velocitySlider.getValue())));
+    }
+    if (control == &m_modeButton)
+    {
+        const juce::StringArray modeNames{"forward", "reverse", "reverse and play to end (ends at the end of the step)"};
+        return stepText + " mode: " + modeNames[m_modeButton.getMode()];
+    }
+    if (control == &m_stepButton)
+    {
+        if (m_stepButton.getToggleState())
+        {
+            return stepText + ": on";
+        }
+        return stepText + ": off";
+    }
+    return juce::String();
+}
+
+void StepColumn::reportControl(const juce::Component* control)
+{
+    if (onInfo)
+    {
+        onInfo(describeControl(control));
+    }
+}
+
+void StepColumn::mouseDown(const juce::MouseEvent& event)
+{
+    if (onSelected)
+    {
+        onSelected(m_stepIndex);
+    }
+    // a click on the mode button or the step button changes a value: show it after the change was made
+    juce::Component* clicked = event.eventComponent;
+    juce::Component::SafePointer<StepColumn> safeThis(this);
+    juce::MessageManager::callAsync([safeThis, clicked]()
+    {
+        if (safeThis != nullptr && clicked != nullptr)
+        {
+            safeThis->reportControl(clicked);
+        }
+    });
+}
+
+void StepColumn::mouseEnter(const juce::MouseEvent& event)
+{
+    reportControl(event.eventComponent);
 }
 
 void StepColumn::updateModeButton()
@@ -274,16 +345,59 @@ StepGrid::StepGrid(juce::AudioProcessorValueTreeState& apvts)
     for (int stepIndex = 0; stepIndex < kMaxSteps; ++stepIndex)
     {
         m_columns[static_cast<std::size_t>(stepIndex)] = std::make_unique<StepColumn>(stepIndex, apvts);
-        addAndMakeVisible(*m_columns[static_cast<std::size_t>(stepIndex)]);
+        StepColumn& column = *m_columns[static_cast<std::size_t>(stepIndex)];
+        column.onSelected = [this](int selectedIndex) { setSelectedStep(selectedIndex); };
+        column.onInfo = [this](const juce::String& text)
+        {
+            if (onInfo)
+            {
+                onInfo(text);
+            }
+        };
+        addAndMakeVisible(column);
     }
+}
+
+int StepGrid::getSelectedStep() const
+{
+    return m_selectedStep;
+}
+
+void StepGrid::setSelectedStep(int stepIndex)
+{
+    m_selectedStep = juce::jlimit(0, kMaxSteps - 1, stepIndex);
+}
+
+void StepGrid::moveSelectedStep(int numSteps, int patternLength)
+{
+    const int length = juce::jlimit(kMinSteps, kMaxSteps, patternLength);
+    int target = m_selectedStep + numSteps;
+    if (target < 0)
+    {
+        target += length;
+    }
+    if (target >= length)
+    {
+        target -= length;
+    }
+    setSelectedStep(juce::jlimit(0, length - 1, target));
 }
 
 void StepGrid::update(int currentStep, juce::uint32 invalidStepMask, int patternLength)
 {
+    if (m_selectedStep >= patternLength)
+    {
+        m_selectedStep = juce::jmax(0, patternLength - 1);
+    }
+    int framedStep = m_selectedStep; // the transport stands: frame the selected step
+    if (currentStep >= 0)
+    {
+        framedStep = currentStep;    // it plays: frame the step that sounds
+    }
     for (int stepIndex = 0; stepIndex < kMaxSteps; ++stepIndex)
     {
         StepColumn& column = *m_columns[static_cast<std::size_t>(stepIndex)];
-        column.setCurrent(stepIndex == currentStep);
+        column.setCurrent(stepIndex == framedStep);
         const juce::uint32 bit = juce::uint32(1) << stepIndex;
         column.setInvalid((invalidStepMask & bit) != 0);
         column.setInsidePattern(stepIndex < patternLength);
