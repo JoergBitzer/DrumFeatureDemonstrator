@@ -190,6 +190,10 @@ void scheduleBlock(const Pattern& pattern, const SampleRegion& region, const Tra
                 continue;
             }
 
+            if (static_cast<int>(soundStarts.size()) >= kMaxSoundStartsPerBlock)
+            {
+                return;
+            }
             SoundStart soundStart;
             soundStart.stepIndex = stepIndex;
             soundStart.sampleOffsetInBlock = static_cast<int>(offsetInSamples);

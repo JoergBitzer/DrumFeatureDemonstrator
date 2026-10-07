@@ -8,7 +8,7 @@
 DrumFeatureDemonstratorAudio::DrumFeatureDemonstratorAudio(DrumFeatureDemonstratorAudioProcessor* processor)
 :SynchronBlockProcessor(), m_processor(processor)
 {
-    m_soundStarts.reserve(dfd::kMaxSteps);
+    m_soundStarts.reserve(dfd::kMaxSoundStartsPerBlock);
 }
 
 void DrumFeatureDemonstratorAudio::prepareToPlay(double sampleRate, int max_samplesPerBlock, int max_channels)
