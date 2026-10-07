@@ -24,7 +24,7 @@
                             given in seconds (default 0); repeatable
       --save-state <file>   write the plugin state (as a DAW saves it) to a file, after everything else was set
       --load-state <file>   restore such a state first (before --preset, --set, --sample)
-      --keys <list>         snapshot: send keys to the window after the notes: left,right,up,down,home,end (comma separated)
+      --keys <list>         snapshot: send keys to the window after the notes: left,right,up,down,home,end,space (comma separated); afterwards 0.5 s are played
       --drop <file>         snapshot: simulate dropping this file onto the window (at the given --drop-at position) before the snapshot
       --drop-at <x,y>       position of the simulated drop as fractions of the window size (default 0.5,0.3)
       --list                print all parameters (ID, name, range, default) and exit
@@ -375,6 +375,7 @@ int main(int argc, char* argv[])
             if (name == "down")  keyCode = juce::KeyPress::downKey;
             if (name == "home")  keyCode = juce::KeyPress::homeKey;
             if (name == "end")   keyCode = juce::KeyPress::endKey;
+            if (name == "space") keyCode = juce::KeyPress::spaceKey;
             if (peer == nullptr || keyCode == 0)
             {
                 std::cout << "Cannot send key " << name << "\n";
@@ -382,7 +383,7 @@ int main(int argc, char* argv[])
             }
             peer->handleKeyPress(juce::KeyPress(keyCode));
         }
-        process(*processor, audio, (int) (0.1 * sampleRate), blockSize, nullptr, true, {});
+        process(*processor, audio, (int) (0.5 * sampleRate), blockSize, nullptr, true, {});
     }
     if (dropPath.isNotEmpty())
     {

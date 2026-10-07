@@ -94,3 +94,7 @@ The author tried version 0.5.1 in Bitwig and reported: (1) drag and drop of a sa
 ### Keyboard labels (branch `fix/keyboard-octave`, version 0.7.1)
 - Cause: JUCE's `MidiKeyboardComponent` labels MIDI note 60 as "C3" by default, while the base note, the step notes and the info line call it C4. Fix: `setOctaveForMiddleC(4)` (`g_octaveOfMiddleC` in `PluginSettings.h`). Checked with a Tester snapshot: a note 60 lights the key labelled C4 and the info line says "note C4".
 
+### Space key (branch `feature/space-key`, version 0.8.0)
+- The space key starts and pauses the internal player (like the Play/Pause button) while Host sync is off; with Host sync on it does nothing and returns "not handled" so the host can use the key (the info line explains). Done in `DrumFeatureDemonstratorGUI::keyPressed` (the editor forwards the keys), through the parameter `InternalPlay` with a gesture.
+- Checked with the Tester (`--keys space` sends a space through the window peer): internal mode, one space -> button shows "Pause", the frame follows the playing step (step 4 after about 0.7 s), "Internal player started"; two spaces -> "Play", paused, frame back on the selected step.
+
