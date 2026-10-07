@@ -108,3 +108,11 @@ The author tried version 0.5.1 in Bitwig and reported: (1) drag and drop of a sa
 - The property was also set by hand on the author's **running** plug-in window (`0x6600000` -> `0x6800009`) with that tool, so the drag could be tried without rebuilding (it vanishes with the window). Result of the author's try: see the next entry.
 - Checked here: builds without warnings, unit tests pass, pluginval Debug (skip GUI) 3/3, Tester snapshot unaffected (the offscreen window is not embedded). Not testable here: the real drag from Thunar (needs a person).
 
+### Drop still fails in Bitwig with 0.9.1 (branch `fix/xdnd-diagnosis`)
+- With the plug-in open in Bitwig the window tree showed that the proxy property **was** set (host window `0x5c00000` -> editor window `0x5e00009`, the editor points to itself). So the first remedy is in place, but the real drag still does nothing.
+- Reproduction without a person, three small manual tools (in `tests/manual/`, not built by CMake): `xdnd_source_tool.cpp` plays a drag source by hand, `gtk_drag_source.py` is a real GTK3 drag source (uri list, like Thunar), `xtest_drag.cpp` moves the mouse pointer with XTest (it takes the pointer for about three seconds).
+  - Source by hand (version 3 of the protocol, JUCE's) onto the Bitwig window: **works** (target answers, takes the drop, the sample was copied into the samples folder and shows in the plug-in). Note: JUCE announces XDND version **3** (`XdndAware` value 3, xprop shows it as "ARC"); a source must use the lower of both versions.
+  - Real GTK source dragged onto the **Standalone** (a top-level window): **works** (Cymbal02.wav loaded).
+  - Real GTK source dragged onto the plug-in window **inside Bitwig**: the source's data is requested twice, **but no sample is loaded**.
+- To see what arrives in the plug-in, an opt-in log was added (`src/DebugLog.h`): if the file `/tmp/dfd_debug.flag` exists, the drop callbacks, the file lists and the proxy installation are written to `/tmp/dfd_debug.log`. (A Debug build with this log is installed for the author's try.)
+

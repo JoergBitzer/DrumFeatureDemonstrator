@@ -4,6 +4,7 @@
 #include "PluginProcessor.h"
 #include "src/NoteNames.h"
 #include "src/platform/XdndProxy.h"
+#include "src/DebugLog.h"
 #include "src/StepScheduler.h"
 #include "src/SampleLoader.h"
 
@@ -448,6 +449,7 @@ void DrumFeatureDemonstratorGUI::installDragProxyIfNeeded()
     // a host that embeds the editor in its own window does not accept file drops for it: forward them
     m_dragProxyWindow = reinterpret_cast<unsigned long>(peer->getNativeHandle());
     m_dragProxyTopLevel = dfd::installXdndProxy(m_dragProxyWindow);
+    dfd::debugLog("xdnd proxy: window " + juce::String(static_cast<juce::int64>(m_dragProxyWindow)) + " -> top-level " + juce::String(static_cast<juce::int64>(m_dragProxyTopLevel)));
 #endif
 }
 
@@ -645,12 +647,14 @@ void DrumFeatureDemonstratorGUI::timerCallback()
 
 bool DrumFeatureDemonstratorGUI::isInterestedInFileDrag(const juce::StringArray& files)
 {
+    dfd::debugLog("gui: isInterestedInFileDrag, files: " + files.joinIntoString(" | "));
     return files.size() > 0;
 }
 
 void DrumFeatureDemonstratorGUI::filesDropped(const juce::StringArray& files, int x, int y)
 {
     juce::ignoreUnused(x, y);
+    dfd::debugLog("gui: filesDropped, files: " + files.joinIntoString(" | "));
     if (files.size() == 0)
     {
         return;
@@ -689,6 +693,7 @@ void DrumFeatureDemonstratorGUI::chooseSampleFile()
 
 void DrumFeatureDemonstratorGUI::loadSampleFile(const juce::File& file)
 {
+    dfd::debugLog("gui: loadSampleFile " + file.getFullPathName());
     m_loadMessage = juce::String();
     m_processor.setLastSampleFolder(file.getParentDirectory()); // the next "Load sample" starts here
     if (m_processor.loadSample(file))
