@@ -9,6 +9,7 @@ Until the skeleton work package (W1) is finished, parts of the code are still th
   blocks via `SynchronBlockProcessor`) and the GUI (`DrumFeatureDemonstratorGUI`). Most work happens here.
 - `src/`: `SampleData`, `SampleVoice`, `VoiceBank`, `SampleHolder`, `SampleLoader` (sample engine; real-time safe: no allocation in the audio thread, tested), `SampleLoadable` (interface used by the Tester).
 - `tools/fetch_samples.sh`: downloads the MusicRadar drum samples for tests (not stored in the repo; the author's copy is in `~/Music/samples/musicradar_sub/`).
+- `gui/`: `WaveformView` (handles, drop), `StepGrid` (step, mode, pitch, velocity) -- JUCE GUI code lives only here and in `DrumFeatureDemonstratorGUI`.
 - `src/Sequencer.*` (transport, internal clock), `src/StepParameters.*` (parameters of the 32 steps).
 - `src/StepScheduler.*`: the pure scheduler of the step pattern and of play to end (no JUCE types); tests in `tests/` (`DrumFeatureDemonstrator_UnitTests`, CTest; scheduler and sample engine), design note in `docs/design/W2-play-to-end.md`.
 - `PluginProcessor.*`, `PluginEditor.*`: glue code (presets, state, window, preset bar); change rarely.

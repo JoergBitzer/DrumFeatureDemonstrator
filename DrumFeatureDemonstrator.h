@@ -10,6 +10,8 @@
 #include "src/VoiceBank.h"
 #include "src/Sequencer.h"
 #include "src/StepParameters.h"
+#include "gui/WaveformView.h"
+#include "gui/StepGrid.h"
 #include "tools/ParameterSpec.h"
 #include "PluginSettings.h"
 const struct
@@ -63,6 +65,19 @@ const struct
 	const bool logFrequency = false;
 	const std::string help = "Plays (1) or pauses (0) the internal beat (used if Sync to host is off).";
 }g_paramInternalPlay;
+
+const struct
+{
+	const std::string ID = "Declick";
+	const std::string name = "Declick";
+	const std::string unitName = "";
+	const float minValue = 0.f;
+	const float maxValue = 1.f;
+	const float defaultValue = 0.f;
+	const int numDecimalPlaces = 0;
+	const bool logFrequency = false;
+	const std::string help = "If on, the start and end handles snap to a zero crossing of the sample when you move them (no click at the region edges).";
+}g_paramDeclick;
 
 
 class DrumFeatureDemonstratorAudioProcessor;
@@ -152,6 +167,7 @@ public:
     juce::uint32 getInvalidStepMask() const { return m_invalidStepMask.load(); } // bit n: step n cannot play to end
     float getDisplayedBpm() const { return m_displayedBpm.load(); }
     bool isHostPositionAvailable() const { return m_hostPositionAvailable.load(); }
+    std::shared_ptr<const dfd::SampleData> getSampleForGui() const { return m_sampleHolder.getCurrentSampleForGui(); }
 
 private:
     void readPattern(dfd::Pattern& pattern) const;
@@ -184,26 +200,55 @@ private:
     std::atomic<bool> m_hostPositionAvailable{false};
 };
 
-class DrumFeatureDemonstratorGUI : public juce::Component, public juce::FileDragAndDropTarget
+class DrumFeatureDemonstratorGUI : public juce::Component, public juce::FileDragAndDropTarget, private juce::Timer
 {
 public:
 	DrumFeatureDemonstratorGUI(DrumFeatureDemonstratorAudioProcessor& p, juce::AudioProcessorValueTreeState& apvts);
+    ~DrumFeatureDemonstratorGUI() override;
 
 	void paint(juce::Graphics& g) override;
 	void resized() override;
 
-    // drop a sample file onto the GUI (the waveform view later)
+    // drop a sample file onto the GUI
     bool isInterestedInFileDrag(const juce::StringArray& files) override;
     void filesDropped(const juce::StringArray& files, int x, int y) override;
 private:
+    void timerCallback() override;
     static bool isSampleFileExtension(const juce::File& file);
     void chooseSampleFile();
     void loadSampleFile(const juce::File& file);
+    void updateNotice();
+    void updateTempoControls(bool syncToHost);
+    void placeControlWithLabel(juce::Rectangle<int> area, juce::Label& label, juce::Component& control);
+
+	DrumFeatureDemonstratorAudioProcessor& m_processor;
+    juce::AudioProcessorValueTreeState& m_apvts;
 
     juce::TextButton m_loadButton;
     juce::Label m_sampleLabel;
+    juce::ToggleButton m_declickButton;
+    juce::Label m_baseNoteLabel;
+    juce::Slider m_baseNoteSlider;
+    juce::Label m_lengthLabel;
+    juce::Slider m_lengthSlider;
+    juce::TextButton m_syncButton;
+    juce::TextButton m_playButton;
+    juce::Label m_tempoLabel;
+    juce::Label m_hostBpmLabel;
+    juce::Slider m_bpmSlider;
+    juce::Label m_noticeLabel;
+    dfd::WaveformView m_waveform;
+    dfd::StepGrid m_stepGrid;
     std::unique_ptr<juce::FileChooser> m_fileChooser;
-	DrumFeatureDemonstratorAudioProcessor& m_processor;
-    juce::AudioProcessorValueTreeState& m_apvts; 
 
+    juce::AudioProcessorValueTreeState::ButtonAttachment m_declickAttachment;
+    juce::AudioProcessorValueTreeState::ButtonAttachment m_syncAttachment;
+    juce::AudioProcessorValueTreeState::ButtonAttachment m_playAttachment;
+    juce::AudioProcessorValueTreeState::SliderAttachment m_baseNoteAttachment;
+    juce::AudioProcessorValueTreeState::SliderAttachment m_lengthAttachment;
+    juce::AudioProcessorValueTreeState::SliderAttachment m_bpmAttachment;
+
+    std::shared_ptr<const dfd::SampleData> m_shownSample;
+    int m_lastSkippedCount = 0;
+    int m_noticeTicksLeft = 0;
 };

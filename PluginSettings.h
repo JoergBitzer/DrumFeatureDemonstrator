@@ -7,9 +7,9 @@ const bool g_forcePowerOf2(false); // should be true for FFT Processing
 
 // -------------- GUI -----------------
 // global GUI setting for DrumFeatureDemonstrator
-const int g_minGuiSize_x(400);
-const int g_maxGuiSize_x(1200);
-const int g_minGuiSize_y(200);
+const int g_minGuiSize_x(1000);
+const int g_maxGuiSize_x(1800);
+const int g_minGuiSize_y(620);
 const float g_guiratio = float(g_minGuiSize_y)/g_minGuiSize_x;
 
 // ---------- presethandler ----------
