@@ -5,8 +5,9 @@
 
     Two modes, both use the real plugin code (processor and editor):
 
-      Tester render <in.wav> <out.wav> [options]
-          plays a wav file through the plugin and writes the result (32-bit float wav)
+      Tester render <in.wav|-> <out.wav> [options]
+          plays a wav file through the plugin and writes the result (32-bit float wav);
+          "-" = no input (instrument): the length is --seconds, the rate --rate
       Tester snapshot <out.png> [options]
           opens the plugin window offscreen and saves it as an image
 
@@ -17,6 +18,10 @@
       --audio <in.wav>      snapshot: play this file through the plugin first (meters etc.)
       --seconds <s>         snapshot: how long to play/wait before the snapshot (default 1)
       --blocksize <n>       block size (default 512)
+      --rate <hz>           sample rate if there is no input file (default 48000)
+      --sample <file>       instrument: load this sample (wav, aiff, flac, ogg)
+      --note <n>[,<vel>[,<seconds>]]   instrument: MIDI note n (velocity 1-127, default 100) at the time
+                            given in seconds (default 0); repeatable
       --list                print all parameters (ID, name, range, default) and exit
       --manual <md|tex>     print the list of controls as a Markdown or LaTeX table and exit
                             (range and default as the plugin shows them, description = the
@@ -31,7 +36,9 @@
 #include <juce_gui_basics/juce_gui_basics.h>
 #include <iostream>
 #include <memory>
+#include <vector>
 #include "../ParameterSpec.h"
+#include "../../src/SampleLoadable.h" // --sample: any processor that can load a sample
 
 // createPluginFilter() (declared by JUCE, defined in PluginProcessor.cpp) is the same function
 // a DAW calls to create the plugin, so this tool needs no plugin-specific names.
@@ -41,12 +48,13 @@ namespace
 int usage()
 {
     std::cout << "Usage:\n"
-                 "  Tester render <in.wav> <out.wav> [options]\n"
+                 "  Tester render <in.wav|-> <out.wav> [options]\n"
                  "  Tester snapshot <out.png> [options]\n"
                  "  Tester --list\n"
                  "  Tester --manual <md|tex>\n"
                  "Options: --preset <file.xml>  --set <id>=<value>  --audio <in.wav>\n"
-                 "         --seconds <s>  --blocksize <n>\n";
+                 "         --seconds <s>  --blocksize <n>  --rate <hz>\n"
+                 "         --sample <file>  --note <n>[,<vel>[,<seconds>]]\n";
     return 2;
 }
 
@@ -126,10 +134,18 @@ void printManual(juce::AudioProcessor& processor, const juce::String& format)
         std::cout << "\\hline\n\\end{tabular}\n";
 }
 
+struct NoteEvent
+{
+    int noteNumber = 0;
+    int velocity = 0;
+    int samplePosition = 0;
+};
+
 // Plays "audio" (or silence, if empty) through the processor in blocks. Optionally pumps
 // the message loop, so an open editor can update (meters, displays).
 void process(juce::AudioProcessor& processor, const juce::AudioBuffer<float>& audio, int numSamples,
-             int blockSize, juce::AudioBuffer<float>* output, bool pumpMessages)
+             int blockSize, juce::AudioBuffer<float>* output, bool pumpMessages,
+             const std::vector<NoteEvent>& notes = {})
 {
     const int numChannels = juce::jmax(processor.getTotalNumInputChannels(), processor.getTotalNumOutputChannels());
     juce::AudioBuffer<float> block(numChannels, blockSize);
@@ -143,6 +159,10 @@ void process(juce::AudioProcessor& processor, const juce::AudioBuffer<float>& au
             block.copyFrom(ch, 0, audio, juce::jmin(ch, audio.getNumChannels() - 1), pos % audio.getNumSamples(),
                            juce::jmin(n, audio.getNumSamples() - pos % audio.getNumSamples()));
         midi.clear();
+        for (const auto& note : notes)
+            if (note.samplePosition >= pos && note.samplePosition < pos + n)
+                midi.addEvent(juce::MidiMessage::noteOn(1, note.noteNumber, (juce::uint8) note.velocity),
+                              note.samplePosition - pos);
         processor.processBlock(block, midi);
         if (output != nullptr)
             for (int ch = 0; ch < output->getNumChannels(); ++ch)
@@ -204,8 +224,10 @@ int main(int argc, char* argv[])
     }
 
     // options
-    juce::String presetPath, audioPath;
+    juce::String presetPath, audioPath, samplePath;
+    juce::StringArray noteArgs;
     double seconds = 1.0;
+    double rate = 48000.0;
     int blockSize = 512;
     juce::StringArray settings;
     juce::StringArray positional;
@@ -218,6 +240,9 @@ int main(int argc, char* argv[])
         else if (a == "--audio" && hasValue)     audioPath = args[++i];
         else if (a == "--seconds" && hasValue)   seconds = args[++i].getDoubleValue();
         else if (a == "--blocksize" && hasValue) blockSize = juce::jmax(16, args[++i].getIntValue());
+        else if (a == "--rate" && hasValue)      rate = args[++i].getDoubleValue();
+        else if (a == "--sample" && hasValue)    samplePath = args[++i];
+        else if (a == "--note" && hasValue)      noteArgs.add(args[++i]);
         else if (a.startsWith("--"))             { std::cout << "Unknown option " << a << "\n"; return usage(); }
         else                                     positional.add(a);
     }
@@ -244,8 +269,10 @@ int main(int argc, char* argv[])
 
     // audio
     juce::AudioBuffer<float> audio;
-    double sampleRate = 48000.0;
-    const juce::String inputPath = mode == "render" ? positional[1] : audioPath;
+    double sampleRate = rate;
+    juce::String inputPath = mode == "render" ? positional[1] : audioPath;
+    if (inputPath == "-")
+        inputPath = juce::String();
     if (inputPath.isNotEmpty() && !readWav(fileArg(inputPath), audio, sampleRate))
     {
         std::cout << "Could not read " << inputPath << "\n";
@@ -254,10 +281,32 @@ int main(int argc, char* argv[])
     processor->setRateAndBufferSizeDetails(sampleRate, blockSize);
     processor->prepareToPlay(sampleRate, blockSize);
 
+    // instrument: sample and notes
+    if (samplePath.isNotEmpty())
+    {
+        auto* drumPlugin = dynamic_cast<dfd::SampleLoadable*>(processor.get());
+        if (drumPlugin == nullptr || !drumPlugin->loadSample(fileArg(samplePath)))
+        {
+            std::cout << "Could not load sample " << samplePath << "\n";
+            return 1;
+        }
+    }
+    std::vector<NoteEvent> notes;
+    for (const auto& n : noteArgs)
+    {
+        juce::StringArray parts = juce::StringArray::fromTokens(n, ",", "");
+        NoteEvent note;
+        note.noteNumber = parts[0].getIntValue();
+        note.velocity = parts.size() > 1 ? parts[1].getIntValue() : 100;
+        note.samplePosition = parts.size() > 2 ? (int) std::lround(parts[2].getDoubleValue() * sampleRate) : 0;
+        notes.push_back(note);
+    }
+
     if (mode == "render")
     {
-        juce::AudioBuffer<float> output(processor->getTotalNumOutputChannels(), audio.getNumSamples());
-        process(*processor, audio, audio.getNumSamples(), blockSize, &output, false);
+        const int numSamples = audio.getNumSamples() > 0 ? audio.getNumSamples() : (int) (seconds * sampleRate);
+        juce::AudioBuffer<float> output(processor->getTotalNumOutputChannels(), numSamples);
+        process(*processor, audio, numSamples, blockSize, &output, false, notes);
         processor->releaseResources();
         if (!writeWav(fileArg(positional[2]), output, sampleRate))
         {
@@ -278,7 +327,7 @@ int main(int argc, char* argv[])
     }
     editor->setVisible(true);
     editor->addToDesktop(0); // offscreen window: some components only paint with a peer
-    process(*processor, audio, (int) (seconds * sampleRate), blockSize, nullptr, true);
+    process(*processor, audio, (int) (seconds * sampleRate), blockSize, nullptr, true, notes);
     const auto image = editor->createComponentSnapshot(editor->getLocalBounds());
     processor->editorBeingDeleted(editor.get()); // as a DAW does, before deleting the editor
     editor.reset();

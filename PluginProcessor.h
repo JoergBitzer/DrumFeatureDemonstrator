@@ -4,9 +4,10 @@
 #include "tools/MidiModPitchState.h"
 #include "tools/PresetHandler.h"
 #include "DrumFeatureDemonstrator.h"
+#include "src/SampleLoadable.h"
 
 //==============================================================================
-class DrumFeatureDemonstratorAudioProcessor  : public juce::AudioProcessor
+class DrumFeatureDemonstratorAudioProcessor  : public juce::AudioProcessor, public dfd::SampleLoadable
 {
 public:
     friend class DrumFeatureDemonstratorAudioProcessorEditor;
@@ -46,6 +47,10 @@ public:
     void getStateInformation (juce::MemoryBlock& destData) override;
     void setStateInformation (const void* data, int sizeInBytes) override;
 
+    // message thread: reads the sample file and hands it to the audio thread; false if it cannot be read
+    bool loadSample(const juce::File& file) override;
+    juce::String getSampleName() const override;
+
     float getScaleFactor(){return m_pluginScaleFactor;};
     void setScaleFactor(float newscalefactor){m_pluginScaleFactor = newscalefactor;};
     
@@ -60,6 +65,7 @@ private:
     std::vector <std::unique_ptr<RangedAudioParameter>> m_paramVector;
 	PresetHandler m_presets;
     float m_pluginScaleFactor = 1.0;    
+    juce::String m_sampleName;
 #if WITH_MIDIKEYBOARD    
     MidiKeyboardState m_keyboardState;
     MidiModPitchBendState m_wheelState;

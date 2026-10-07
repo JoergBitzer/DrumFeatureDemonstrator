@@ -102,12 +102,14 @@ Design points (details in the design note of W2):
 | GUI: one mode button below each step (reverse -> reverse + play to end -> forward); no left/right half buttons; no "forward + play to end" | **DECIDED** (2026-10-07) |
 | Pattern length 8 to 32 steps | **DECIDED** (2026-10-07) |
 | Velocity per step (gain only); MIDI notes play the sample with velocity; `WITH_MIDIKEYBOARD` on | **DECIDED** (2026-10-07) |
-| Fixed-size block processing is kept (the offset inside the block is computed) | **DECIDED** (2026-10-07, author) |
+| Fixed-size block processing is kept (the offset inside the block is computed) | **DECIDED** (2026-10-07, author). **Changed in W3 (please confirm):** `g_desired_blocksize_ms = 0`, i.e. the `SynchronBlockProcessor` runs in its direct mode (host blocks, no rebuffering): an instrument gains nothing from fixed blocks, rebuffering would add latency to MIDI and the sequencer, and the offset inside the host block is exact anyway. The setting is one constant in `PluginSettings.h`. |
 | Start already gone (jump, loop, transport start): no audio, with a small notification | **DECIDED** (2026-10-07) |
 | Tempo change during run-up or sound: ignored | **DECIDED** (2026-10-07) |
 | Timing: whole-sample start is enough | **DECIDED** (2026-10-07) |
 | Declick: a button, active only when the user changes start or end | **DECIDED** (2026-10-07) |
 | Sample: load/save button, drop onto the waveform, stored with the preset (at least a copy in the user's data folder) | **DECIDED** (2026-10-07) |
+| **Drum samples for tests and the factory preset: the MusicRadar SampleRadar packs** (free, royalty-free); local collection `~/Music/samples/musicradar_sub/`, automatic download for CI by `tools/fetch_samples.sh` (pack "Junk Drums", 101 MB, `https://cdn.mos.musicradar.com/audio/samples/musicradar-junk-drums-samples.zip`); not stored in the repository | **DECIDED** (2026-10-07, author) |
+| Step pitch is relative to the base note (the base note only matters for MIDI notes and for the mapping note -> speed) | **DECIDED** (W3, 2026-10-07) |
 | License MIT + AGPL note (template default); plugin name `DrumFeatureDemonstrator`, code `DFD1`, manufacturer `Jade_Hochschule` (code `IHAJ` of the template) | **DECIDED** (2026-10-07) |
 | One pattern per preset; the preset handler is the pattern memory | **DECIDED** (2026-10-07) |
 | The mode button of an inactive step is disabled (stored mode kept) | **DECIDED** (2026-10-07) |
@@ -125,3 +127,4 @@ None. (The five questions of draft v2 are answered and moved to section 7.)
 - 2026-10-07: answers to the five open questions committed; v3 written (no open questions left).
 - 2026-10-07: W1 (skeleton) done: template copied, renamed, instrument settings, JUCE 9.0.3 submodule; Debug and Release build, pluginval SUCCESS.
 - 2026-10-07: W2 done (branch `feature/scheduler`, version 0.1.0): `src/StepScheduler.*`, `tests/StepSchedulerTests.cpp`, `docs/design/W2-play-to-end.md`; unit tests pass (also checked by a mutation of the anchor).
+- 2026-10-07: W3 done (branch `feature/sample-engine`, version 0.2.0): `src/SampleData`, `SampleVoice`, `VoiceBank` (16 voices, linear interpolation, sample-exact triggers), `SampleHolder` (lock-free handover), `SampleLoader`, MIDI note-on with velocity and base note, parameters BaseNote / RegionStart / RegionEnd, load button and file drop on the GUI (waveform view comes in W6). Tester: `render - out.wav --sample file --note n,vel,seconds`. Checked with a 1 kHz sine and a MusicRadar cymbal: pitch within 0.1 %, length within 3 samples, velocity linear. Not yet: the sample is not stored in the state/preset (W7), the zero-crossing snap exists (`findNearestZeroCrossing`) but is wired to the handles in W6, Hermite interpolation later.

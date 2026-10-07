@@ -7,7 +7,9 @@ Made from the AdvancedAudioTemplate, branch AAT2. **The plan, the decisions and 
 Until the skeleton work package (W1) is finished, parts of the code are still the template's example code.
 - `DrumFeatureDemonstrator.h/.cpp`: the parameters (structs), the algorithm (`DrumFeatureDemonstratorAudio`, fixed-size
   blocks via `SynchronBlockProcessor`) and the GUI (`DrumFeatureDemonstratorGUI`). Most work happens here.
-- `src/StepScheduler.*`: the pure scheduler of the step pattern and of play to end (no JUCE types); tests in `tests/` (`DrumFeatureDemonstrator_UnitTests`, CTest), design note in `docs/design/W2-play-to-end.md`.
+- `src/`: `SampleData`, `SampleVoice`, `VoiceBank`, `SampleHolder`, `SampleLoader` (sample engine; real-time safe: no allocation in the audio thread, tested), `SampleLoadable` (interface used by the Tester).
+- `tools/fetch_samples.sh`: downloads the MusicRadar drum samples for tests (not stored in the repo; the author's copy is in `~/Music/samples/musicradar_sub/`).
+- `src/StepScheduler.*`: the pure scheduler of the step pattern and of play to end (no JUCE types); tests in `tests/` (`DrumFeatureDemonstrator_UnitTests`, CTest; scheduler and sample engine), design note in `docs/design/W2-play-to-end.md`.
 - `PluginProcessor.*`, `PluginEditor.*`: glue code (presets, state, window, preset bar); change rarely.
 - `PluginSettings.h`: block size, GUI size, preset-bar and keyboard layout.
 - `tools/`: template helpers -- `ParameterSpec.h`, `DayNightLookAndFeel.*`, `PresetHandler.*`,
