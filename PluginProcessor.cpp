@@ -1,4 +1,5 @@
 #include "PluginProcessor.h"
+#include "src/SampleLoader.h"
 #include "PluginEditor.h"
 
 //==============================================================================
@@ -185,6 +186,24 @@ void DrumFeatureDemonstratorAudioProcessor::processBlock (juce::AudioBuffer<floa
     midiMessages.clear(); // except you want to create new midi messages, but than say so 
     // by setting NEEDS_MIDI_OUTPUT in CMakeLists.txt
 #endif
+}
+
+//==============================================================================
+bool DrumFeatureDemonstratorAudioProcessor::loadSample(const juce::File& file)
+{
+    std::shared_ptr<const dfd::SampleData> sample = dfd::loadSampleFile(file);
+    if (sample == nullptr)
+    {
+        return false;
+    }
+    m_algo.setSample(sample);
+    m_sampleName = file.getFileName();
+    return true;
+}
+
+juce::String DrumFeatureDemonstratorAudioProcessor::getSampleName() const
+{
+    return m_sampleName;
 }
 
 //==============================================================================

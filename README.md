@@ -4,7 +4,7 @@ A one-sample drum player (instrument plugin: VST3, AU on macOS, Standalone) with
 so it can start a (reversed) sample so that it ends exactly at the end of its step, e.g. a reverse cymbal that leads
 into the next full beat.
 
-Status: skeleton (work package W1 of [planning.md](planning.md)); the instrument does not make sound yet.
+Status: work package W3 of [planning.md](planning.md) is done: load a sample (button or drop), play it from MIDI notes with pitch and velocity. The step sequencer and play to end follow.
 
 Made from the [AdvancedAudioTemplate](https://github.com/JoergBitzer/AdvancedAudioTemplate), branch AAT2.
 
@@ -15,6 +15,7 @@ cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug -DAAT_BUILD_TESTER=ON
 cmake --build build --target DrumFeatureDemonstrator_VST3 DrumFeatureDemonstrator_Standalone DrumFeatureDemonstrator_Tester
 ```
 Testing: see [HowToTestYourPlugin.md](HowToTestYourPlugin.md) (Debug build, `tools/run_pluginval.sh`, Tester).
+Drum samples for tests: `tools/fetch_samples.sh` (MusicRadar SampleRadar, free and royalty-free). Example: `DrumFeatureDemonstrator_Tester render - out.wav --sample cymbal.wav --note 60,100,0.5 --seconds 4`.
 Documentation rules: [docs/HowToDoc.md](docs/HowToDoc.md).
 
 ## Versioning

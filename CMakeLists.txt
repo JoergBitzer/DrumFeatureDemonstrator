@@ -17,7 +17,7 @@ endif()
 
 set(TARGET_NAME DrumFeatureDemonstrator)
 
-project(${TARGET_NAME} VERSION 0.1.0)
+project(${TARGET_NAME} VERSION 0.2.0)
 
 if(NOT TARGET juce::juce_core) # JUCE not added by a parent project: use the submodule
     if(NOT EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/JUCE/CMakeLists.txt")
@@ -95,6 +95,11 @@ target_sources(${TARGET_NAME}
         tools/PresetHandler.cpp
         tools/SynchronBlockProcessor.cpp
         src/StepScheduler.cpp
+        src/SampleData.cpp
+        src/SampleVoice.cpp
+        src/VoiceBank.cpp
+        src/SampleHolder.cpp
+        src/SampleLoader.cpp
         )
 
 
@@ -178,7 +183,12 @@ if(DFD_BUILD_UNIT_TESTS)
     target_sources(${TARGET_NAME}_UnitTests PRIVATE
         tests/UnitTestMain.cpp
         tests/StepSchedulerTests.cpp
-        src/StepScheduler.cpp)
+        tests/SampleEngineTests.cpp
+        src/StepScheduler.cpp
+        src/SampleData.cpp
+        src/SampleVoice.cpp
+        src/VoiceBank.cpp
+        src/SampleHolder.cpp)
     target_compile_definitions(${TARGET_NAME}_UnitTests PRIVATE JUCE_USE_CURL=0 JUCE_WEB_BROWSER=0)
     target_link_libraries(${TARGET_NAME}_UnitTests PRIVATE juce::juce_core
         PUBLIC juce::juce_recommended_config_flags juce::juce_recommended_warning_flags)
