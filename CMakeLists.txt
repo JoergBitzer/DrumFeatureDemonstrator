@@ -17,7 +17,7 @@ endif()
 
 set(TARGET_NAME DrumFeatureDemonstrator)
 
-project(${TARGET_NAME} VERSION 0.9.0)
+project(${TARGET_NAME} VERSION 0.9.1)
 
 if(NOT TARGET juce::juce_core) # JUCE not added by a parent project: use the submodule
     if(NOT EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/JUCE/CMakeLists.txt")
@@ -103,6 +103,7 @@ target_sources(${TARGET_NAME}
         src/SampleHolder.cpp
         src/SampleLoader.cpp
         src/SampleStore.cpp
+        src/platform/XdndProxy.cpp
         gui/WaveformView.cpp
         gui/StepGrid.cpp
         )
@@ -150,6 +151,11 @@ set_target_properties(${TARGET_NAME}-binary PROPERTIES
 endif()
 
 
+
+# Linux: src/platform/XdndProxy.cpp uses Xlib directly (file drops into an embedded plug-in window)
+if(UNIX AND NOT APPLE)
+    target_link_libraries(${TARGET_NAME} PRIVATE X11)
+endif()
 
 target_link_libraries(${TARGET_NAME}
     PRIVATE

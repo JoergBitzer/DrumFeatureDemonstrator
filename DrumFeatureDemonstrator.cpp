@@ -3,6 +3,7 @@
 
 #include "PluginProcessor.h"
 #include "src/NoteNames.h"
+#include "src/platform/XdndProxy.h"
 #include "src/StepScheduler.h"
 #include "src/SampleLoader.h"
 
@@ -418,6 +419,36 @@ DrumFeatureDemonstratorGUI::DrumFeatureDemonstratorGUI(DrumFeatureDemonstratorAu
 DrumFeatureDemonstratorGUI::~DrumFeatureDemonstratorGUI()
 {
     stopTimer();
+    if (m_dragProxyTopLevel != 0)
+    {
+        dfd::removeXdndProxy(m_dragProxyTopLevel, m_dragProxyWindow);
+    }
+}
+
+void DrumFeatureDemonstratorGUI::installDragProxyIfNeeded()
+{
+#if JUCE_LINUX
+    constexpr int kTicksBetweenAttempts = 30; // about one second
+    constexpr int kMaxAttempts = 20;
+    if (m_dragProxyTopLevel != 0 || m_dragProxyTicks > kTicksBetweenAttempts * kMaxAttempts)
+    {
+        return;
+    }
+    const bool isAttemptTick = (m_dragProxyTicks % kTicksBetweenAttempts) == 0;
+    ++m_dragProxyTicks;
+    if (isAttemptTick == false)
+    {
+        return;
+    }
+    juce::ComponentPeer* peer = getPeer();
+    if (peer == nullptr)
+    {
+        return;
+    }
+    // a host that embeds the editor in its own window does not accept file drops for it: forward them
+    m_dragProxyWindow = reinterpret_cast<unsigned long>(peer->getNativeHandle());
+    m_dragProxyTopLevel = dfd::installXdndProxy(m_dragProxyWindow);
+#endif
 }
 
 void DrumFeatureDemonstratorGUI::updateTempoControls(bool syncToHost)
@@ -576,6 +607,7 @@ bool DrumFeatureDemonstratorGUI::keyPressed(const juce::KeyPress& key, juce::Com
 
 void DrumFeatureDemonstratorGUI::timerCallback()
 {
+    installDragProxyIfNeeded();
     applyStepEntries();
     const bool syncToHost = m_syncButton.getToggleState();
     updateTempoControls(syncToHost);

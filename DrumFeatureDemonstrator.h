@@ -225,6 +225,7 @@ public:
     bool keyPressed(const juce::KeyPress& key, juce::Component* originatingComponent) override;
 private:
     bool toggleInternalPlayer();
+    void installDragProxyIfNeeded();
     void applyStepEntries();
     void setParameterWithGesture(const juce::String& parameterId, float value);
     void showInfo(const juce::String& text);
@@ -268,5 +269,8 @@ private:
     std::shared_ptr<const dfd::SampleData> m_shownSample;
     int m_lastSkippedCount = 0;
     int m_noticeTicksLeft = 0;
+    unsigned long m_dragProxyTopLevel = 0; // Linux: host window that forwards file drops to this editor (see src/platform/XdndProxy.h)
+    unsigned long m_dragProxyWindow = 0;
+    int m_dragProxyTicks = 0;
     juce::String m_loadMessage; // message of the last failed load, shown in the sample label
 };
