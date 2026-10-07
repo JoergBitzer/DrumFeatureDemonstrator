@@ -24,6 +24,7 @@
                             given in seconds (default 0); repeatable
       --save-state <file>   write the plugin state (as a DAW saves it) to a file, after everything else was set
       --load-state <file>   restore such a state first (before --preset, --set, --sample)
+      --keys <list>         snapshot: send keys to the window after the notes: left,right,up,down,home,end (comma separated)
       --drop <file>         snapshot: simulate dropping this file onto the window (at the given --drop-at position) before the snapshot
       --drop-at <x,y>       position of the simulated drop as fractions of the window size (default 0.5,0.3)
       --list                print all parameters (ID, name, range, default) and exit
@@ -228,7 +229,7 @@ int main(int argc, char* argv[])
     }
 
     // options
-    juce::String presetPath, audioPath, saveStatePath, loadStatePath, dropPath, dropAt = "0.5,0.3";
+    juce::String presetPath, audioPath, saveStatePath, loadStatePath, dropPath, dropAt = "0.5,0.3", keyNames;
     juce::StringArray samplePaths;
     juce::StringArray noteArgs;
     double seconds = 1.0;
@@ -247,6 +248,7 @@ int main(int argc, char* argv[])
         else if (a == "--blocksize" && hasValue) blockSize = juce::jmax(16, args[++i].getIntValue());
         else if (a == "--save-state" && hasValue) saveStatePath = args[++i];
         else if (a == "--load-state" && hasValue) loadStatePath = args[++i];
+        else if (a == "--keys" && hasValue)      keyNames = args[++i];
         else if (a == "--drop" && hasValue)      dropPath = args[++i];
         else if (a == "--drop-at" && hasValue)   dropAt = args[++i];
         else if (a == "--rate" && hasValue)      rate = args[++i].getDoubleValue();
@@ -360,6 +362,28 @@ int main(int argc, char* argv[])
     editor->setVisible(true);
     editor->addToDesktop(0); // offscreen window: some components only paint with a peer
     process(*processor, audio, (int) (seconds * sampleRate), blockSize, nullptr, true, notes);
+    if (keyNames.isNotEmpty())
+    {
+        auto* peer = editor->getPeer();
+        const juce::StringArray names = juce::StringArray::fromTokens(keyNames, ",", "");
+        for (const auto& name : names)
+        {
+            int keyCode = 0;
+            if (name == "left")  keyCode = juce::KeyPress::leftKey;
+            if (name == "right") keyCode = juce::KeyPress::rightKey;
+            if (name == "up")    keyCode = juce::KeyPress::upKey;
+            if (name == "down")  keyCode = juce::KeyPress::downKey;
+            if (name == "home")  keyCode = juce::KeyPress::homeKey;
+            if (name == "end")   keyCode = juce::KeyPress::endKey;
+            if (peer == nullptr || keyCode == 0)
+            {
+                std::cout << "Cannot send key " << name << "\n";
+                return 1;
+            }
+            peer->handleKeyPress(juce::KeyPress(keyCode));
+        }
+        process(*processor, audio, (int) (0.1 * sampleRate), blockSize, nullptr, true, {});
+    }
     if (dropPath.isNotEmpty())
     {
         auto* peer = editor->getPeer();

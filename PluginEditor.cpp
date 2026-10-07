@@ -28,6 +28,8 @@ DrumFeatureDemonstratorAudioProcessorEditor::DrumFeatureDemonstratorAudioProcess
 
     // from here your algo editor ---------
     addAndMakeVisible(m_editor);
+    addKeyListener(&m_editor);       // cursor keys: select the step
+    setWantsKeyboardFocus(true);
 
     for (auto* parameter : m_processorRef.getParameters())
         parameter->addListener(this);
@@ -48,6 +50,7 @@ DrumFeatureDemonstratorAudioProcessorEditor::DrumFeatureDemonstratorAudioProcess
 
 DrumFeatureDemonstratorAudioProcessorEditor::~DrumFeatureDemonstratorAudioProcessorEditor()
 {
+    removeKeyListener(&m_editor);
 #if WITH_DAYNIGHT
     setLookAndFeel(nullptr);
 #endif

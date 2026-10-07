@@ -167,6 +167,8 @@ public:
     juce::uint32 getInvalidStepMask() const { return m_invalidStepMask.load(); } // bit n: step n cannot play to end
     float getDisplayedBpm() const { return m_displayedBpm.load(); }
     bool isHostPositionAvailable() const { return m_hostPositionAvailable.load(); }
+    // MIDI notes that arrived while the transport stood (step entry): the GUI applies them to the selected step
+    bool popStepEntry(int& noteNumber, int& velocity);
     std::shared_ptr<const dfd::SampleData> getSampleForGui() const { return m_sampleHolder.getCurrentSampleForGui(); }
 
 private:
@@ -175,6 +177,7 @@ private:
     void addSequencerEvents(const dfd::SampleData& sample, int regionStart, int regionEnd);
     void updateInvalidSteps(const dfd::Pattern& pattern, const dfd::SampleRegion& region, double bpm);
     float stepValue(int stepIndex, dfd::StepParam param) const;
+    void collectStepEntries(const juce::MidiBuffer& midiMessages);
     void addNoteEvents(const juce::MidiBuffer& midiMessages, const dfd::SampleData& sample, int regionStart, int regionEnd);
 
 	DrumFeatureDemonstratorAudioProcessor* m_processor;
@@ -188,6 +191,10 @@ private:
     std::atomic<float>* m_internalBpm = nullptr;
     std::atomic<float>* m_internalPlay = nullptr;
     std::array<std::atomic<float>*, dfd::kMaxSteps * dfd::kNumParamsPerStep> m_stepParameters{};
+    static constexpr int kStepEntryCapacity = 32;
+    static constexpr int kVelocityShift = 8; // an entry holds note + velocity * 256
+    juce::AbstractFifo m_stepEntryFifo{kStepEntryCapacity};
+    std::array<int, kStepEntryCapacity> m_stepEntries{};
     dfd::SampleHolder m_sampleHolder;
     dfd::VoiceBank m_voiceBank;
     dfd::Sequencer m_sequencer;
@@ -200,7 +207,7 @@ private:
     std::atomic<bool> m_hostPositionAvailable{false};
 };
 
-class DrumFeatureDemonstratorGUI : public juce::Component, public juce::FileDragAndDropTarget, private juce::Timer
+class DrumFeatureDemonstratorGUI : public juce::Component, public juce::FileDragAndDropTarget, public juce::KeyListener, private juce::Timer
 {
 public:
 	DrumFeatureDemonstratorGUI(DrumFeatureDemonstratorAudioProcessor& p, juce::AudioProcessorValueTreeState& apvts);
@@ -212,7 +219,15 @@ public:
     // drop a sample file onto the GUI
     bool isInterestedInFileDrag(const juce::StringArray& files) override;
     void filesDropped(const juce::StringArray& files, int x, int y) override;
+
+    // cursor keys move the selected step (the editor forwards the keys it gets)
+    using juce::Component::keyPressed;
+    bool keyPressed(const juce::KeyPress& key, juce::Component* originatingComponent) override;
 private:
+    void applyStepEntries();
+    void setParameterWithGesture(const juce::String& parameterId, float value);
+    void showInfo(const juce::String& text);
+    int currentPatternLength() const;
     void timerCallback() override;
     static bool isSampleFileExtension(const juce::File& file);
     void chooseSampleFile();
@@ -237,6 +252,7 @@ private:
     juce::Label m_hostBpmLabel;
     juce::Slider m_bpmSlider;
     juce::Label m_noticeLabel;
+    juce::Label m_infoLabel;
     dfd::WaveformView m_waveform;
     dfd::StepGrid m_stepGrid;
     std::unique_ptr<juce::FileChooser> m_fileChooser;
