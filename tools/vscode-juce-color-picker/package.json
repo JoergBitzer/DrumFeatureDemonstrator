@@ -1,0 +1,11 @@
+{
+  "name": "juce-color-picker",
+  "displayName": "JUCE Color Picker",
+  "description": "Native color swatch + picker for JUCE 0xAARRGGBB hex literals in C/C++ files",
+  "version": "0.0.1",
+  "publisher": "local",
+  "engines": { "vscode": "^1.80.0" },
+  "activationEvents": ["onLanguage:cpp", "onLanguage:c"],
+  "main": "./extension.js",
+  "contributes": {}
+}
