@@ -507,6 +507,31 @@ void DrumFeatureDemonstratorGUI::applyStepEntries()
     }
 }
 
+bool DrumFeatureDemonstratorGUI::toggleInternalPlayer()
+{
+    if (m_syncButton.getToggleState())
+    {
+        showInfo("The space key starts the internal player; it is off while Host sync is on (the DAW plays).");
+        return false; // the host may use the space key itself
+    }
+    const bool isPlaying = m_playButton.getToggleState();
+    float newValue = 1.0f;
+    if (isPlaying)
+    {
+        newValue = 0.0f;
+    }
+    setParameterWithGesture(juce::String(g_paramInternalPlay.ID), newValue);
+    if (isPlaying)
+    {
+        showInfo("Internal player paused");
+    }
+    else
+    {
+        showInfo("Internal player started");
+    }
+    return true;
+}
+
 bool DrumFeatureDemonstratorGUI::keyPressed(const juce::KeyPress& key, juce::Component* originatingComponent)
 {
     juce::ignoreUnused(originatingComponent);
@@ -535,6 +560,10 @@ bool DrumFeatureDemonstratorGUI::keyPressed(const juce::KeyPress& key, juce::Com
     else if (key == juce::KeyPress::endKey)
     {
         m_stepGrid.setSelectedStep(length - 1);
+    }
+    else if (key == juce::KeyPress::spaceKey)
+    {
+        return toggleInternalPlayer();
     }
     else
     {

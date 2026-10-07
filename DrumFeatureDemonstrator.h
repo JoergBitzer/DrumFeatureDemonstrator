@@ -224,6 +224,7 @@ public:
     using juce::Component::keyPressed;
     bool keyPressed(const juce::KeyPress& key, juce::Component* originatingComponent) override;
 private:
+    bool toggleInternalPlayer();
     void applyStepEntries();
     void setParameterWithGesture(const juce::String& parameterId, float value);
     void showInfo(const juce::String& text);
