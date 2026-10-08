@@ -1,4 +1,6 @@
 # Builds DrumFeatureDemonstrator for Windows, macOS and Linux (AAT2 template, see README).
+#  - the unit tests (tests/, CTest) run on every system; on Windows and macOS they do not stop the build yet
+#    (they were only run on Linux during the development)
 #  - push a tag vX.Y.Z (must match the VERSION in CMakeLists.txt):
 #    builds all platforms and creates a GitHub Release with the zips
 #  - "Run workflow" button on the Actions page: builds only, the zips are
@@ -55,11 +57,19 @@ jobs:
 
       - name: Configure
         shell: bash
-        run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Release ${{ matrix.cmake_args }}
+        run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DDFD_BUILD_UNIT_TESTS=ON ${{ matrix.cmake_args }}
 
       - name: Build
         shell: bash
         run: cmake --build build --config Release --parallel 4 --target ${{ matrix.targets }}
+
+      # unit tests of the pure code (scheduler, sequencer, sample engine, sample store)
+      - name: Build and run the unit tests
+        shell: bash
+        continue-on-error: ${{ runner.os != 'Linux' }}
+        run: |
+          cmake --build build --config Release --parallel 4 --target DrumFeatureDemonstrator_UnitTests
+          ctest --test-dir build -C Release --output-on-failure
 
       # pluginval (see tools/run_pluginval.*): a failing plugin stops the release
       - name: Test with pluginval (Linux)
@@ -165,6 +175,10 @@ jobs:
           **macOS:** the binaries are not signed with an Apple Developer ID yet. If macOS says the
           plugin is damaged or cannot be opened, remove the quarantine flag in the Terminal, e.g.
           `xattr -cr ~/Library/Audio/Plug-Ins/VST3/DrumFeatureDemonstrator.vst3`.
+
+          DrumFeatureDemonstrator is vibe-coded with Anthropic's Claude, after a planning phase, with human
+          review and usage tests (Linux, Bitwig) and systematic automated testing -- see "How it was made" in the README.
+          Windows and macOS are checked by this CI (pluginval, on macOS also auval).
           EOF
           gh release create "$GITHUB_REF_NAME" zips/*.zip --title "$PRODUCT $GITHUB_REF_NAME" \
             --notes-file notes.md --generate-notes

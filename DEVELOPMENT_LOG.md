@@ -134,3 +134,13 @@ Wishes of the author: (1) base note only between C-1 and C-5, (2) the bar slider
 - **Checked with real mouse input** (XTest on the Standalone window, no sample loaded, so the display covers a nominal 1 s): dragging the end line from the right edge to the middle gave 0.576 s; dragging the fade-in square at the top gave a fade of 0.206 s and the envelope followed. Snapshot with a cymbal, region 0.05 - 0.8, fades 0.03 s and 0.25 s: looks as intended.
 - Factory presets regenerated (version 3, fades 0); manual and controls list updated.
 
+## Round 5: Windows test in Cubase, CI, documents (2026-10-08)
+Request of the author: test this version in Cubase on Windows; push it; adapt the CI building commands of the other plugins; build a manual, a readme.txt and an extended README.md like the other plugins.
+
+### Documents and CI (branch `docs/release-docs-ci`, no new version: documentation and workflow only; the version stays 0.10.0)
+- **CI:** `.github/workflows/release.yml` already had the structure of the other plugins (StereoWidener, SimplePeakEQ, the template): Windows (VST3 + Standalone), macOS (Universal, VST3 + AU, ad-hoc signature, auval), Linux on Ubuntu 22.04, pluginval on every system, zips with plug-ins, manual, ReadMeFirst.txt and licenses, release only for a tag `vX.Y.Z` that matches the version. Added here: the unit tests (`-DDFD_BUILD_UNIT_TESTS=ON`, `ctest`) on every system -- blocking on Linux, **not blocking on Windows and macOS** (they were never compiled there; a failure shows in the run but does not stop the zips) -- and the "vibe-coded" note in the release text. The Linux package list already contains `libx11-dev`, which `src/platform/XdndTarget.cpp` needs.
+- **readme.txt = `release/ReadMeFirst.txt`:** installation per system (Windows path and a Cubase hint), first steps, preset/sample folders, license, like the other plugins.
+- **README.md** extended after StereoWidener's: screenshots (night/day in `docs/img/`), download and install table, features, the play-to-end formula, "How it was made" (honest about what was and was not tested), build from source, folder table for students, license.
+- **Manual:** `docs/manual/ManualDrumFeatureDemonstrator.pdf` rebuilt (version 0.10.0, five pages, checked visually).
+- **Windows test:** needs the Windows zip: start the workflow by hand ("Run workflow", or `gh workflow run release.yml --ref main`); the zips are attached to the run as artifacts. A tag `v0.10.0` would additionally create a public GitHub release; that was not done (tags only on request).
+
