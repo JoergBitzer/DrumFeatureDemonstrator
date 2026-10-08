@@ -1,6 +1,5 @@
 # Builds DrumFeatureDemonstrator for Windows, macOS and Linux (AAT2 template, see README).
-#  - the unit tests (tests/, CTest) run on every system; on Windows and macOS they do not stop the build yet
-#    (they were only run on Linux during the development)
+#  - the unit tests (tests/, CTest) run on every system and stop the build if one fails
 #  - push a tag vX.Y.Z (must match the VERSION in CMakeLists.txt):
 #    builds all platforms and creates a GitHub Release with the zips
 #  - "Run workflow" button on the Actions page: builds only, the zips are
@@ -66,7 +65,6 @@ jobs:
       # unit tests of the pure code (scheduler, sequencer, sample engine, sample store)
       - name: Build and run the unit tests
         shell: bash
-        continue-on-error: ${{ runner.os != 'Linux' }}
         run: |
           cmake --build build --config Release --parallel 4 --target DrumFeatureDemonstrator_UnitTests
           ctest --test-dir build -C Release --output-on-failure
