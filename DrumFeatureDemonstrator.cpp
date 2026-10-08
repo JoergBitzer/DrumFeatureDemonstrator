@@ -102,6 +102,8 @@ void DrumFeatureDemonstratorAudio::addNoteEvents(const juce::MidiBuffer& midiMes
         voiceStart.sample = &sample;
         voiceStart.regionStart = regionStart;
         voiceStart.regionEnd = regionEnd;
+        voiceStart.fadeInSamples = m_fadeInSamples;
+        voiceStart.fadeOutSamples = m_fadeOutSamples;
         voiceStart.playbackRatio = dfd::playbackRatio(semitones, sample.sampleRate, m_hostSampleRate);
         voiceStart.reverse = false;
         voiceStart.gain = message.getFloatVelocity();
@@ -207,6 +209,8 @@ void DrumFeatureDemonstratorAudio::addSequencerEvents(const dfd::SampleData& sam
         voiceStart.sample = &sample;
         voiceStart.regionStart = regionStart;
         voiceStart.regionEnd = regionEnd;
+        voiceStart.fadeInSamples = m_fadeInSamples;
+        voiceStart.fadeOutSamples = m_fadeOutSamples;
         voiceStart.playbackRatio = soundStart.playbackRatio;
         voiceStart.reverse = soundStart.reverse;
         voiceStart.gain = soundStart.gain;
@@ -236,6 +240,16 @@ int DrumFeatureDemonstratorAudio::processSynchronBlock(juce::AudioBuffer<float> 
         regionEnd = regionPosition(m_regionEnd->load(), numSampleSamples);
         region.lengthInFileSamples = static_cast<double>(regionEnd - regionStart);
         region.fileSampleRate = sample->sampleRate;
+        m_fadeInSamples = static_cast<double>(m_fadeIn->load()) * sample->sampleRate;
+        m_fadeOutSamples = static_cast<double>(m_fadeOut->load()) * sample->sampleRate;
+        const double totalFade = m_fadeInSamples + m_fadeOutSamples;
+        if (totalFade > region.lengthInFileSamples && totalFade > 0.0)
+        {
+            // both fades together cannot be longer than the region: shorten them in proportion
+            const double scale = region.lengthInFileSamples / totalFade;
+            m_fadeInSamples *= scale;
+            m_fadeOutSamples *= scale;
+        }
     }
 
     const bool syncToHost = m_syncToHost->load() > kHalf;
@@ -274,6 +288,8 @@ void DrumFeatureDemonstratorAudio::addParameter(std::vector<std::unique_ptr<juce
     paramVector.push_back(jade::makeParameter(g_paramSyncToHost));
     paramVector.push_back(jade::makeParameter(g_paramInternalBpm));
     paramVector.push_back(jade::makeParameter(g_paramInternalPlay));
+    paramVector.push_back(jade::makeParameter(g_paramFadeIn));
+    paramVector.push_back(jade::makeParameter(g_paramFadeOut));
     paramVector.push_back(jade::makeParameter(g_paramDeclick));
     for (int stepIndex = 0; stepIndex < dfd::kMaxSteps; ++stepIndex)
     {
@@ -290,6 +306,8 @@ void DrumFeatureDemonstratorAudio::prepareParameter(std::unique_ptr<juce::AudioP
     m_baseNote = vts->getRawParameterValue(g_paramBaseNote.ID);
     m_regionStart = vts->getRawParameterValue(g_paramRegionStart.ID);
     m_regionEnd = vts->getRawParameterValue(g_paramRegionEnd.ID);
+    m_fadeIn = vts->getRawParameterValue(g_paramFadeIn.ID);
+    m_fadeOut = vts->getRawParameterValue(g_paramFadeOut.ID);
     m_patternLength = vts->getRawParameterValue(g_paramPatternLength.ID);
     m_syncToHost = vts->getRawParameterValue(g_paramSyncToHost.ID);
     m_internalBpm = vts->getRawParameterValue(g_paramInternalBpm.ID);
@@ -340,7 +358,8 @@ void setupBarSlider(juce::Slider& slider)
 
 DrumFeatureDemonstratorGUI::DrumFeatureDemonstratorGUI(DrumFeatureDemonstratorAudioProcessor& p, juce::AudioProcessorValueTreeState& apvts)
 :m_processor(p) ,m_apvts(apvts),
- m_waveform(*apvts.getParameter(g_paramRegionStart.ID), *apvts.getParameter(g_paramRegionEnd.ID)),
+ m_waveform(*apvts.getParameter(g_paramRegionStart.ID), *apvts.getParameter(g_paramRegionEnd.ID),
+            *apvts.getParameter(g_paramFadeIn.ID), *apvts.getParameter(g_paramFadeOut.ID)),
  m_stepGrid(apvts),
  m_declickAttachment(apvts, g_paramDeclick.ID, m_declickButton),
  m_syncAttachment(apvts, g_paramSyncToHost.ID, m_syncButton),

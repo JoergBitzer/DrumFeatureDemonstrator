@@ -139,6 +139,7 @@ public:
         testPitch();
         testReverseIsTimeReversed();
         testRegion();
+        testFades();
         testStartOffsetAndGain();
         testStereoMapping();
         testVoiceStealing();
@@ -235,6 +236,34 @@ private:
         bank.addEvent(0, voiceStart);
         output = renderMono(bank, 100);
         expectEquals(soundLength(output), 0);
+    }
+
+    void testFades()
+    {
+        beginTest("fade in and fade out of the region");
+        const dfd::SampleData sample = makeMonoSample(std::vector<float>(1000, 1.0f), kRate48k);
+        dfd::VoiceStart voiceStart = makeStart(sample, 1.0, false);
+        voiceStart.fadeInSamples = 100.0;
+        voiceStart.fadeOutSamples = 200.0;
+        dfd::VoiceBank bank;
+        bank.addEvent(0, voiceStart);
+        std::vector<float> output = renderMono(bank, 1100);
+        expectWithinAbsoluteError(output[0], 0.0f, 1.0e-3f);   // starts silent
+        expectWithinAbsoluteError(output[50], 0.5f, 1.0e-3f);  // halfway up
+        expectWithinAbsoluteError(output[100], 1.0f, 1.0e-3f); // full
+        expectWithinAbsoluteError(output[500], 1.0f, 1.0e-3f);
+        expectWithinAbsoluteError(output[800], 1.0f, 1.0e-3f); // the fade out starts 200 samples before the end
+        expectWithinAbsoluteError(output[900], 0.5f, 1.0e-3f);
+        expect(output[999] < 0.01f);
+
+        // reverse: the envelope belongs to the sample (the waveform), so a reversed sound starts inside the fade out
+        voiceStart.reverse = true;
+        bank.addEvent(0, voiceStart);
+        output = renderMono(bank, 1100);
+        expect(output[0] < 0.01f);
+        expectWithinAbsoluteError(output[100], 0.5f, 0.01f);   // position 899: (1000 - 899) / 200
+        expectWithinAbsoluteError(output[500], 1.0f, 1.0e-3f);
+        expect(output[999] < 0.01f);
     }
 
     void testStartOffsetAndGain()

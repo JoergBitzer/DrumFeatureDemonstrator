@@ -13,6 +13,8 @@ struct VoiceStart
     const SampleData* sample = nullptr;
     int regionStart = 0; // first sample of the region
     int regionEnd = 0;   // one behind the last sample of the region
+    double fadeInSamples = 0.0;  // in file samples: the gain rises from 0 to 1 over this length after regionStart
+    double fadeOutSamples = 0.0; // the gain falls from 1 to 0 over this length before regionEnd (both in the sample's own time)
     double playbackRatio = 1.0;
     bool reverse = false;
     float gain = 1.0f;
@@ -31,6 +33,7 @@ public:
 
 private:
     float interpolatedValue(int channelIndex) const;
+    float fadeGain() const;
     bool isPositionInRegion() const;
 
     VoiceStart m_start;

@@ -67,9 +67,12 @@ Linux:   /home/yourUSERNAME/.config/Jade_Hochschule/DrumFeatureDemonstrator
     \item \textbf{Load sample}: choose a sample file (wav, aiff, flac, ogg), or drop a file onto the
     waveform. A copy is kept in the folder \texttt{Samples} next to the presets; the sample is stored with
     your DAW project and referred to by its name in a preset.
-    \item \textbf{Waveform}: drag the two orange handles to set start and end of the part that is played.
-    With \textbf{Declick} switched on, a handle snaps to a zero crossing of the sample (no click at the edge).
-    \item \textbf{Base note}: the MIDI note at which the sample sits in the scale, i.e. plays at its original speed (C4 = MIDI note 60). Changing it transposes all steps and the keyboard.
+    \item \textbf{Waveform}: the orange line is the envelope of the played part. Drag the \textbf{start line} and the \textbf{end line}
+    (grab the knob in the middle or any point of the lower part of the display) to set start and end; their times in seconds are shown
+    next to them. Drag the small squares at the \textbf{top} sideways for the \textbf{fade-in} and \textbf{fade-out time}: the gain rises from 0 to 1
+    after the start line and falls to 0 before the end line (the line is slanted accordingly). Both fades together cannot be longer than the played part.
+    With \textbf{Declick} switched on, the start and end line snap to a zero crossing of the sample (no click at the edge).
+    \item \textbf{Base note}: the MIDI note at which the sample sits in the scale, i.e. plays at its original speed (C4 = MIDI note 60; range C1 to C5). Changing it transposes all steps and the keyboard.
     MIDI notes (also the keyboard at the bottom) play the sample with the pitch relative to the base note and with velocity.
     \item \textbf{Pattern}: length of the pattern in steps (8 to 32). Steps beyond the length are dimmed.
     \item \textbf{Host sync}: on = the plug-in follows tempo and position of the DAW (it plays while the DAW plays);

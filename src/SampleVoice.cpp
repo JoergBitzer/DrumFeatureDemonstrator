@@ -72,6 +72,20 @@ float SampleVoice::interpolatedValue(int channelIndex) const
     return lowerValue + fraction * (upperValue - lowerValue);
 }
 
+float SampleVoice::fadeGain() const
+{
+    double gain = 1.0;
+    if (m_start.fadeInSamples > 0.0)
+    {
+        gain = std::min(gain, (m_position - m_start.regionStart) / m_start.fadeInSamples);
+    }
+    if (m_start.fadeOutSamples > 0.0)
+    {
+        gain = std::min(gain, (m_start.regionEnd - m_position) / m_start.fadeOutSamples);
+    }
+    return static_cast<float>(std::max(0.0, gain));
+}
+
 void SampleVoice::renderAdd(float* const* outputs, int numOutputChannels, int firstSample, int numSamples)
 {
     const int numSampleChannels = m_start.sample->numChannels();
@@ -83,10 +97,11 @@ void SampleVoice::renderAdd(float* const* outputs, int numOutputChannels, int fi
             m_active = false;
             return;
         }
+        const float gain = m_start.gain * fadeGain();
         for (int outputIndex = 0; outputIndex < numOutputChannels; ++outputIndex)
         {
             const int sourceChannel = std::min(outputIndex, numSampleChannels - 1);
-            outputs[outputIndex][sampleIndex] += m_start.gain * interpolatedValue(sourceChannel);
+            outputs[outputIndex][sampleIndex] += gain * interpolatedValue(sourceChannel);
         }
         if (m_start.reverse)
         {

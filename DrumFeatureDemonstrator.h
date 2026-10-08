@@ -69,6 +69,32 @@ const struct
 
 const struct
 {
+	const std::string ID = "FadeIn";
+	const std::string name = "Fade in";
+	const std::string unitName = "s";
+	const float minValue = 0.f;
+	const float maxValue = 10.f;
+	const float defaultValue = 0.f;
+	const int numDecimalPlaces = 3;
+	const bool logFrequency = false;
+	const std::string help = "Fade-in time at the start of the played region (the top handle at the start line of the waveform).";
+}g_paramFadeIn;
+
+const struct
+{
+	const std::string ID = "FadeOut";
+	const std::string name = "Fade out";
+	const std::string unitName = "s";
+	const float minValue = 0.f;
+	const float maxValue = 10.f;
+	const float defaultValue = 0.f;
+	const int numDecimalPlaces = 3;
+	const bool logFrequency = false;
+	const std::string help = "Fade-out time at the end of the played region (the top handle at the end line of the waveform).";
+}g_paramFadeOut;
+
+const struct
+{
 	const std::string ID = "Declick";
 	const std::string name = "Declick";
 	const std::string unitName = "";
@@ -187,6 +213,10 @@ private:
     std::atomic<float>* m_baseNote = nullptr;
     std::atomic<float>* m_regionStart = nullptr;
     std::atomic<float>* m_regionEnd = nullptr;
+    std::atomic<float>* m_fadeIn = nullptr;
+    std::atomic<float>* m_fadeOut = nullptr;
+    double m_fadeInSamples = 0.0;  // of the block being processed, in file samples
+    double m_fadeOutSamples = 0.0;
     std::atomic<float>* m_patternLength = nullptr;
     std::atomic<float>* m_syncToHost = nullptr;
     std::atomic<float>* m_internalBpm = nullptr;
