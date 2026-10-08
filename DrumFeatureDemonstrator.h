@@ -91,12 +91,12 @@ const struct
 	const std::string ID = "BaseNote";
 	const std::string name = "Base note";
 	const std::string unitName = "";
-	const float minValue = 0.f;
-	const float maxValue = 127.f;
+	const float minValue = 24.f;  // C1
+	const float maxValue = 72.f;  // C5
 	const float defaultValue = 60.f;
 	const int numDecimalPlaces = 0;
 	const bool logFrequency = false;
-	const std::string help = "MIDI note at which the sample plays at its original speed (60 = C4).";
+	const std::string help = "MIDI note at which the sample plays at its original speed (60 = C4); range C1 - C5.";
 }g_paramBaseNote;
 
 const struct
