@@ -47,6 +47,46 @@ void DayNightLookAndFeel::setTheme(Theme newTheme)
     setColour(juce::Slider::thumbColourId, kRed);
 }
 
+void DayNightLookAndFeel::drawLinearSlider(juce::Graphics& g, int x, int y, int width, int height, float sliderPos,
+                                           float minSliderPos, float maxSliderPos, juce::Slider::SliderStyle style,
+                                           juce::Slider& slider)
+{
+    if (style != juce::Slider::LinearBar)
+    {
+        juce::LookAndFeel_V4::drawLinearSlider(g, x, y, width, height, sliderPos, minSliderPos, maxSliderPos, style, slider);
+        return;
+    }
+    constexpr float kCorner = 4.0f;
+    constexpr float kBorderWidth = 1.5f;
+    constexpr float kHandleWidth = 6.0f;
+    constexpr float kTrackMix = 0.08f;
+    constexpr float kFillAlpha = 0.75f;
+    constexpr float kBorderAlpha = 0.6f;
+
+    const auto bounds = juce::Rectangle<int>(x, y, width, height).toFloat().reduced(1.0f);
+    const juce::Colour background = findColour(juce::ResizableWindow::backgroundColourId);
+    const juce::Colour textColour = findColour(juce::Label::textColourId);
+    const juce::Colour accent = slider.findColour(juce::Slider::thumbColourId);
+
+    g.setColour(background.interpolatedWith(textColour, kTrackMix));
+    g.fillRoundedRectangle(bounds, kCorner);
+
+    // the part up to the value
+    const float handleCentre = juce::jlimit(bounds.getX() + 0.5f * kHandleWidth, bounds.getRight() - 0.5f * kHandleWidth, sliderPos);
+    juce::Rectangle<float> filled = bounds.withRight(handleCentre);
+    g.setColour(accent.withAlpha(slider.isEnabled() ? kFillAlpha : 0.3f));
+    g.fillRoundedRectangle(filled, kCorner);
+
+    // border and handle: visible at the lowest value, too
+    g.setColour(textColour.withAlpha(kBorderAlpha));
+    g.drawRoundedRectangle(bounds, kCorner, kBorderWidth);
+    const auto handle = juce::Rectangle<float>(kHandleWidth, bounds.getHeight()).withCentre({handleCentre, bounds.getCentreY()});
+    g.setColour(accent);
+    g.fillRoundedRectangle(handle, 0.5f * kHandleWidth);
+    g.setColour(textColour);
+    g.drawRoundedRectangle(handle, 0.5f * kHandleWidth, 1.0f);
+}
+
 void DayNightLookAndFeel::drawRotarySlider(juce::Graphics& g, int x, int y, int width, int height, float sliderPos,
                                            float rotaryStartAngle, float rotaryEndAngle, juce::Slider& slider)
 {
