@@ -31,3 +31,7 @@
 *.out
 *.app
 build*/
+
+# Local notes, not part of the repository (texts for KVR and the forum)
+marketing.md
+marketing.html
