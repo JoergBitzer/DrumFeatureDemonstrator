@@ -1,6 +1,11 @@
 /**
  * @file WaveformView.h
- * @brief shows the sample with two handles (start and end of the played region); drop a sample file onto it
+ * @brief shows the sample with the played region, its fade in / fade out and handles to change them; drop a sample file onto it
+ *
+ * The orange line is the envelope of the region: it rises from the start line to the fade-in handle at the top, runs along the
+ * top and falls from the fade-out handle to the end line. Handles:
+ *  - start and end line: grab them in the middle or lower part of the display (the time of the handle is shown next to it),
+ *  - fade-in and fade-out handle (small squares at the top): drag them sideways to set the fade times.
  */
 #pragma once
 
@@ -18,7 +23,8 @@ class WaveformView : public juce::Component, public juce::SettableTooltipClient,
                      public juce::TextDragAndDropTarget
 {
 public:
-    WaveformView(juce::RangedAudioParameter& startParameter, juce::RangedAudioParameter& endParameter);
+    WaveformView(juce::RangedAudioParameter& startParameter, juce::RangedAudioParameter& endParameter,
+                 juce::RangedAudioParameter& fadeInParameter, juce::RangedAudioParameter& fadeOutParameter);
 
     void setSample(std::shared_ptr<const SampleData> sample);
     void setDeclickEnabled(bool shouldSnap);
@@ -30,6 +36,7 @@ public:
     void mouseDrag(const juce::MouseEvent& event) override;
     void mouseUp(const juce::MouseEvent& event) override;
     void mouseMove(const juce::MouseEvent& event) override;
+    void mouseExit(const juce::MouseEvent& event) override;
 
     bool isInterestedInFileDrag(const juce::StringArray& files) override;
     void filesDropped(const juce::StringArray& files, int x, int y) override;
@@ -45,28 +52,40 @@ private:
     {
         None,
         Start,
-        End
+        End,
+        FadeIn,
+        FadeOut
     };
 
     static juce::File fileFromDroppedText(const juce::String& text);
     void rebuildPeaks();
+    float sampleSeconds() const;
     float fractionToX(float fraction) const;
+    float secondsToWidth(float seconds) const;
     float xToFraction(float x) const;
-    Handle handleAt(float x) const;
+    void effectiveFades(float& fadeInSeconds, float& fadeOutSeconds) const;
+    Handle handleAt(float x, float y) const;
     float snapToZeroCrossing(float fraction) const;
-    void setHandleFraction(Handle handle, float fraction);
-    void drawHandle(juce::Graphics& g, float x, bool isStart) const;
+    void setHandle(Handle handle, float x);
+    void beginGestureOf(Handle handle);
+    void endGestureOf(Handle handle);
+    void drawTimeLabel(juce::Graphics& g, float lineX, float seconds, bool labelOnTheRight) const;
+    void drawFadeLabel(juce::Graphics& g, float handleX, float seconds, bool labelOnTheRight) const;
+    static juce::String secondsText(float seconds);
 
-    juce::RangedAudioParameter& m_startParameter;
-    juce::RangedAudioParameter& m_endParameter;
     juce::ParameterAttachment m_startAttachment;
     juce::ParameterAttachment m_endAttachment;
+    juce::ParameterAttachment m_fadeInAttachment;
+    juce::ParameterAttachment m_fadeOutAttachment;
     std::shared_ptr<const SampleData> m_sample;
     std::vector<float> m_peakMin;
     std::vector<float> m_peakMax;
     float m_startFraction = 0.0f;
     float m_endFraction = 1.0f;
+    float m_fadeInSeconds = 0.0f;
+    float m_fadeOutSeconds = 0.0f;
     Handle m_draggedHandle = Handle::None;
+    Handle m_hoveredHandle = Handle::None;
     bool m_snapToZeroCrossing = false;
     bool m_fileIsOver = false;
 };

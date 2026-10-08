@@ -7,13 +7,13 @@ The presets contain no sample (the samples are not part of the repository): they
 """
 import os
 
-PRESET_VERSION = 2 # 2: step pitch became a MIDI note, velocity 1 - 127
+PRESET_VERSION = 3 # 2: step pitch became a MIDI note, velocity 1 - 127; 3: fade in / fade out
 BASE_NOTE = 60
 NUM_STEPS = 32
 FORWARD, REVERSE, REVERSE_TO_END = 0, 1, 2
 
 SINGLE_DEFAULTS = {
-    "BaseNote": 60.0, "Declick": 0.0, "InternalBpm": 120.0, "InternalPlay": 0.0, "PatternLength": 16.0,
+    "BaseNote": 60.0, "Declick": 0.0, "FadeIn": 0.0, "FadeOut": 0.0, "InternalBpm": 120.0, "InternalPlay": 0.0, "PatternLength": 16.0,
     "RegionEnd": 1.0, "RegionStart": 0.0, "SyncToHost": 1.0,
 }
 
