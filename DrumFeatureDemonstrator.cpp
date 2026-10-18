@@ -350,10 +350,14 @@ void DrumFeatureDemonstratorAudio::prepareParameter(std::unique_ptr<juce::AudioP
 namespace
 {
 constexpr int kTimerIntervalMs = 33;
+constexpr float kHalfValue = 0.5f;
 constexpr int kSkippedNoticeTicks = 90; // about 3 seconds
 constexpr float kRowFractionTop = 0.09f;
 constexpr float kRowFractionSecond = 0.09f;
-constexpr float kWaveformFraction = 0.22f;
+constexpr float kWaveformFraction = 0.20f;
+constexpr float kPatternStripFraction = 0.085f;
+constexpr float kPatternStripWidthFraction = 0.30f;
+constexpr float kBottomBarFraction = 0.065f;
 constexpr float kLabelFractionOfRow = 0.62f;
 constexpr float kFontFractionOfRow = 0.45f;
 constexpr int kBarTextBoxWidth = 80;
@@ -384,6 +388,7 @@ DrumFeatureDemonstratorGUI::DrumFeatureDemonstratorGUI(DrumFeatureDemonstratorAu
  m_waveform(*apvts.getParameter(g_paramRegionStart.ID), *apvts.getParameter(g_paramRegionEnd.ID),
             *apvts.getParameter(g_paramFadeIn.ID), *apvts.getParameter(g_paramFadeOut.ID)),
  m_stepGrid(apvts),
+ m_patternSelector(apvts),
  m_declickAttachment(apvts, g_paramDeclick.ID, m_declickButton),
  m_syncAttachment(apvts, g_paramSyncToHost.ID, m_syncButton),
  m_playAttachment(apvts, g_paramInternalPlay.ID, m_playButton),
@@ -437,6 +442,29 @@ DrumFeatureDemonstratorGUI::DrumFeatureDemonstratorGUI(DrumFeatureDemonstratorAu
     m_infoLabel.setText("Hover over or turn a control to see its value here. Cursor keys or a click select a step; MIDI notes set its note and velocity while the transport stands.", juce::dontSendNotification);
     addAndMakeVisible(m_infoLabel);
     m_stepGrid.onInfo = [this](const juce::String& text) { showInfo(text); };
+
+    // the pattern buttons: the grid shows the edited pattern
+    m_patternSelector.onEditPatternChanged = [this](int patternIndex) { m_stepGrid.setEditPattern(patternIndex); };
+    m_stepGrid.setEditPattern(m_patternSelector.getEditPattern());
+    addAndMakeVisible(m_patternSelector);
+
+    // the pages of the small sliders under the steps
+    constexpr int kPageRadioGroup = 2001;
+    setupLabel(m_pageLabel, "Sliders");
+    addAndMakeVisible(m_pageLabel);
+    const std::pair<juce::TextButton*, juce::String> pageButtons[] = {{&m_pageNoteButton, "Note"}, {&m_pageVelocityButton, "Velocity"}, {&m_pagePanButton, "Pan"}};
+    for (const auto& entry : pageButtons)
+    {
+        entry.first->setButtonText(entry.second);
+        entry.first->setClickingTogglesState(true);
+        entry.first->setRadioGroupId(kPageRadioGroup);
+        entry.first->setTooltip("The small sliders under the steps show the " + entry.second.toLowerCase() + " of every step.");
+        addAndMakeVisible(*entry.first);
+    }
+    m_pageNoteButton.setToggleState(true, juce::dontSendNotification);
+    m_pageNoteButton.onClick = [this]() { m_stepGrid.setPage(dfd::GridPage::Note); };
+    m_pageVelocityButton.onClick = [this]() { m_stepGrid.setPage(dfd::GridPage::Velocity); };
+    m_pagePanButton.onClick = [this]() { m_stepGrid.setPage(dfd::GridPage::Pan); };
 
     m_noticeLabel.setJustificationType(juce::Justification::centredLeft);
     m_noticeLabel.setColour(juce::Label::textColourId, kNoticeColour);
@@ -535,16 +563,35 @@ void DrumFeatureDemonstratorGUI::updateTempoControls(bool syncToHost)
     m_bpmSlider.setVisible(syncToHost == false);
 }
 
+int DrumFeatureDemonstratorGUI::currentEditPattern() const
+{
+    return m_patternSelector.getEditPattern();
+}
+
+// play to end is impossible for a step of a pattern that is switched on
+bool DrumFeatureDemonstratorGUI::anyPlayingPatternHasInvalidSteps() const
+{
+    for (int patternIndex = 0; patternIndex < dfd::kNumPatterns; ++patternIndex)
+    {
+        const std::atomic<float>* playFlag = m_apvts.getRawParameterValue(juce::String(dfd::playPatternParameterId(patternIndex)));
+        if (playFlag->load() > kHalfValue && m_processor.m_algo.getInvalidStepMask(patternIndex) != 0)
+        {
+            return true;
+        }
+    }
+    return false;
+}
+
 void DrumFeatureDemonstratorGUI::updateNotice()
 {
-    const juce::uint32 invalidMask = m_processor.m_algo.getInvalidStepMask(0);
+    const bool anyInvalid = anyPlayingPatternHasInvalidSteps();
     const int skippedCount = m_processor.m_algo.getSkippedSoundCount();
     if (skippedCount != m_lastSkippedCount)
     {
         m_lastSkippedCount = skippedCount;
         m_noticeTicksLeft = kSkippedNoticeTicks;
     }
-    if (invalidMask != 0)
+    if (anyInvalid)
     {
         m_noticeLabel.setText("Play to end impossible: sample longer than the pattern.", juce::dontSendNotification);
     }
@@ -592,12 +639,13 @@ void DrumFeatureDemonstratorGUI::applyStepEntries()
     while (m_processor.m_algo.popStepEntry(note, velocity))
     {
         const int stepIndex = m_stepGrid.getSelectedStep();
+        const int patternIndex = currentEditPattern();
         const float clampedNote = juce::jlimit(dfd::kMinStepNote, dfd::kMaxStepNote, static_cast<float>(note));
         const float clampedVelocity = juce::jlimit(dfd::kMinVelocity, dfd::kMaxVelocity, static_cast<float>(velocity));
-        setParameterWithGesture(juce::String(dfd::stepParameterId(0, stepIndex, dfd::StepParam::Active)), 1.0f);
-        setParameterWithGesture(juce::String(dfd::stepParameterId(0, stepIndex, dfd::StepParam::Note)), clampedNote);
-        setParameterWithGesture(juce::String(dfd::stepParameterId(0, stepIndex, dfd::StepParam::Velocity)), clampedVelocity);
-        showInfo("Step " + juce::String(stepIndex + 1) + " set by MIDI: note " + juce::String(dfd::noteName(static_cast<int>(clampedNote)))
+        setParameterWithGesture(juce::String(dfd::stepParameterId(patternIndex, stepIndex, dfd::StepParam::Active)), 1.0f);
+        setParameterWithGesture(juce::String(dfd::stepParameterId(patternIndex, stepIndex, dfd::StepParam::Note)), clampedNote);
+        setParameterWithGesture(juce::String(dfd::stepParameterId(patternIndex, stepIndex, dfd::StepParam::Velocity)), clampedVelocity);
+        showInfo("Pattern " + juce::String(patternIndex + 1) + ", step " + juce::String(stepIndex + 1) + " set by MIDI: note " + juce::String(dfd::noteName(static_cast<int>(clampedNote)))
                  + ", velocity " + juce::String(static_cast<int>(clampedVelocity)));
     }
 }
@@ -702,8 +750,20 @@ void DrumFeatureDemonstratorGUI::timerCallback()
         m_sampleLabel.setText(m_processor.getSampleName(), juce::dontSendNotification);
     }
     m_waveform.setDeclickEnabled(m_declickButton.getToggleState());
-    m_stepGrid.update(m_processor.m_algo.getCurrentStep(), m_processor.m_algo.getInvalidStepMask(0),
+    const bool running = m_processor.m_algo.isTransportRunning();
+    const int playingPattern = m_processor.m_algo.getCurrentPattern();
+    int framedStep = -1;                        // yellow frame: nothing
+    if (running == false)
+    {
+        framedStep = m_stepGrid.getSelectedStep(); // the transport stands: the selected step
+    }
+    else if (playingPattern == currentEditPattern())
+    {
+        framedStep = m_processor.m_algo.getCurrentStep(); // the step that sounds, if its pattern is the shown one
+    }
+    m_stepGrid.update(framedStep, m_processor.m_algo.getInvalidStepMask(currentEditPattern()),
                       static_cast<int>(std::lround(m_lengthSlider.getValue())));
+    m_patternSelector.setPlayingPattern(running ? playingPattern : -1);
     updateNotice();
 }
 
@@ -795,7 +855,7 @@ void DrumFeatureDemonstratorGUI::resized()
     const int height = getHeight();
     const int rowHeight = static_cast<int>(kRowFractionTop * static_cast<float>(height));
     const juce::Font rowFont(juce::FontOptions(kFontFractionOfRow * static_cast<float>(rowHeight)));
-    for (juce::Label* label : {&m_sampleLabel, &m_baseNoteLabel, &m_lengthLabel, &m_tempoLabel, &m_hostBpmLabel, &m_noticeLabel, &m_infoLabel})
+    for (juce::Label* label : {&m_sampleLabel, &m_baseNoteLabel, &m_lengthLabel, &m_tempoLabel, &m_hostBpmLabel, &m_noticeLabel, &m_infoLabel, &m_pageLabel})
     {
         label->setFont(rowFont);
     }
@@ -821,7 +881,15 @@ void DrumFeatureDemonstratorGUI::resized()
     r.removeFromTop(margin);
     m_waveform.setBounds(r.removeFromTop(static_cast<int>(kWaveformFraction * static_cast<float>(height))));
     r.removeFromTop(margin);
-    const int infoHeight = static_cast<int>(0.8f * static_cast<float>(rowHeight));
-    m_infoLabel.setBounds(r.removeFromBottom(infoHeight));
+    auto patternStrip = r.removeFromTop(static_cast<int>(kPatternStripFraction * static_cast<float>(height)));
+    m_patternSelector.setBounds(patternStrip.removeFromLeft(static_cast<int>(kPatternStripWidthFraction * static_cast<float>(r.getWidth()))));
+    r.removeFromTop(margin);
+    auto bottomBar = r.removeFromBottom(static_cast<int>(kBottomBarFraction * static_cast<float>(height)));
+    const int pageUnit = bottomBar.getWidth() / 20;
+    m_pageLabel.setBounds(bottomBar.removeFromLeft(2 * pageUnit));
+    m_pageNoteButton.setBounds(bottomBar.removeFromLeft(2 * pageUnit).reduced(margin / 2, 1));
+    m_pageVelocityButton.setBounds(bottomBar.removeFromLeft(2 * pageUnit).reduced(margin / 2, 1));
+    m_pagePanButton.setBounds(bottomBar.removeFromLeft(2 * pageUnit).reduced(margin / 2, 1));
+    m_infoLabel.setBounds(bottomBar.reduced(margin, 0));
     m_stepGrid.setBounds(r);
 }

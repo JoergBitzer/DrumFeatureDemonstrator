@@ -106,6 +106,7 @@ target_sources(${TARGET_NAME}
         src/platform/XdndTarget.cpp
         gui/WaveformView.cpp
         gui/StepGrid.cpp
+        gui/PatternSelector.cpp
         )
 
 

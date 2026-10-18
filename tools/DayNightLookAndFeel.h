@@ -34,6 +34,7 @@ public:
     // bar sliders (juce::Slider::LinearBar): with a border and a handle, so the lowest value is visible, too
     void drawLinearSlider(juce::Graphics& g, int x, int y, int width, int height, float sliderPos, float minSliderPos,
                           float maxSliderPos, juce::Slider::SliderStyle style, juce::Slider& slider) override;
+    void drawSmallHorizontalSlider(juce::Graphics& g, int x, int y, int width, int height, float sliderPos, juce::Slider& slider);
     void drawRotarySlider(juce::Graphics& g, int x, int y, int width, int height, float sliderPos,
                           float rotaryStartAngle, float rotaryEndAngle, juce::Slider& slider) override;
 

@@ -47,10 +47,62 @@ void DayNightLookAndFeel::setTheme(Theme newTheme)
     setColour(juce::Slider::thumbColourId, kRed);
 }
 
+// the small horizontal sliders under the steps: a thin track with a border, the fill from the left edge (or from the centre for
+// a slider with the property "bipolar", like the pan) to the value, and a handle
+void DayNightLookAndFeel::drawSmallHorizontalSlider(juce::Graphics& g, int x, int y, int width, int height, float sliderPos,
+                                                    juce::Slider& slider)
+{
+    constexpr float kTrackHeight = 6.0f;
+    constexpr float kHandleWidth = 5.0f;
+    constexpr float kTrackMix = 0.08f;
+    constexpr float kBorderAlpha = 0.55f;
+    constexpr float kFillAlpha = 0.85f;
+    constexpr float kCorner = 2.0f;
+    constexpr float kHalf = 0.5f;
+
+    const auto bounds = juce::Rectangle<int>(x, y, width, height).toFloat().reduced(1.0f);
+    const juce::Colour background = findColour(juce::ResizableWindow::backgroundColourId);
+    const juce::Colour textColour = findColour(juce::Label::textColourId);
+    const juce::Colour accent = slider.findColour(juce::Slider::thumbColourId);
+
+    const auto track = juce::Rectangle<float>(bounds.getWidth(), kTrackHeight).withCentre(bounds.getCentre());
+    g.setColour(background.interpolatedWith(textColour, kTrackMix));
+    g.fillRoundedRectangle(track, kCorner);
+
+    const float handleCentre = juce::jlimit(bounds.getX() + kHandleWidth * kHalf, bounds.getRight() - kHandleWidth * kHalf, sliderPos);
+    float originX = bounds.getX();
+    if (static_cast<bool>(slider.getProperties().getWithDefault("bipolar", false)))
+    {
+        originX = bounds.getCentreX();
+    }
+    const float fillLeft = juce::jmin(originX, handleCentre);
+    const float fillRight = juce::jmax(originX, handleCentre);
+    g.setColour(accent.withAlpha(slider.isEnabled() ? kFillAlpha : 0.3f));
+    g.fillRect(fillLeft, track.getY(), fillRight - fillLeft, track.getHeight());
+
+    g.setColour(textColour.withAlpha(kBorderAlpha));
+    g.drawRoundedRectangle(track, kCorner, 1.0f);
+    if (static_cast<bool>(slider.getProperties().getWithDefault("bipolar", false)))
+    {
+        g.fillRect(bounds.getCentreX() - kHalf, track.getY() - 1.0f, 1.0f, track.getHeight() + 2.0f); // centre mark
+    }
+
+    const auto handle = juce::Rectangle<float>(kHandleWidth, bounds.getHeight()).withCentre({handleCentre, bounds.getCentreY()});
+    g.setColour(accent);
+    g.fillRoundedRectangle(handle, kCorner);
+    g.setColour(textColour);
+    g.drawRoundedRectangle(handle, kCorner, 1.0f);
+}
+
 void DayNightLookAndFeel::drawLinearSlider(juce::Graphics& g, int x, int y, int width, int height, float sliderPos,
                                            float minSliderPos, float maxSliderPos, juce::Slider::SliderStyle style,
                                            juce::Slider& slider)
 {
+    if (style == juce::Slider::LinearHorizontal)
+    {
+        drawSmallHorizontalSlider(g, x, y, width, height, sliderPos, slider);
+        return;
+    }
     if (style != juce::Slider::LinearBar)
     {
         juce::LookAndFeel_V4::drawLinearSlider(g, x, y, width, height, sliderPos, minSliderPos, maxSliderPos, style, slider);

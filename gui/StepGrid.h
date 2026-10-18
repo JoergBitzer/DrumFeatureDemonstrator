@@ -20,7 +20,10 @@ namespace dfd
 class ModeButton : public juce::Component, public juce::SettableTooltipClient
 {
 public:
-    explicit ModeButton(juce::RangedAudioParameter& parameter);
+    ModeButton();
+
+    // the parameter of the mode (the grid shows one of four patterns, so the button is connected to another parameter after a switch)
+    void setParameter(juce::RangedAudioParameter& parameter);
 
     int getMode() const;
     void setStepActive(bool isActive);
@@ -31,7 +34,7 @@ public:
 private:
     float currentMode() const;
 
-    juce::ParameterAttachment m_attachment;
+    std::unique_ptr<juce::ParameterAttachment> m_attachment;
     float m_value = 0.0f;
     bool m_stepActive = false;
     bool m_invalid = false;
@@ -50,6 +53,14 @@ private:
     bool m_beatAccent = false;
 };
 
+// what the small slider under every step shows (the "pages" of the grid)
+enum class GridPage
+{
+    Note,
+    Velocity,
+    Pan
+};
+
 class StepColumn : public juce::Component
 {
 public:
@@ -58,6 +69,8 @@ public:
     std::function<void(int)> onSelected;                 // the user clicked into this column
     std::function<void(const juce::String&)> onInfo;     // text for the info line (hover or change of a control)
 
+    // connects the controls to the parameters of this step in the given pattern and page
+    void bind(int patternIndex, GridPage page);
     void setCurrent(bool isCurrentStep);
     void setInvalid(bool isInvalid);
     void setInsidePattern(bool isInside);
@@ -70,15 +83,17 @@ private:
     void updateModeButton();
     void reportControl(const juce::Component* control);
     juce::String describeControl(const juce::Component* control) const;
+    StepParam pageParameter() const;
 
     int m_stepIndex;
+    int m_patternIndex = 0;
+    GridPage m_page = GridPage::Note;
+    juce::AudioProcessorValueTreeState& m_apvts;
     StepButton m_stepButton;
     ModeButton m_modeButton;
-    juce::Slider m_noteSlider;
-    juce::Slider m_velocitySlider;
-    juce::AudioProcessorValueTreeState::ButtonAttachment m_stepAttachment;
-    juce::AudioProcessorValueTreeState::SliderAttachment m_noteAttachment;
-    juce::AudioProcessorValueTreeState::SliderAttachment m_velocityAttachment;
+    juce::Slider m_valueSlider;
+    std::unique_ptr<juce::AudioProcessorValueTreeState::ButtonAttachment> m_stepAttachment;
+    std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment> m_valueAttachment;
 };
 
 class StepGrid : public juce::Component
@@ -88,17 +103,23 @@ public:
 
     std::function<void(const juce::String&)> onInfo;
 
-    // the selected step is the one MIDI input and the cursor keys work on; it is framed while the transport stands
+    // which pattern the grid shows and edits, and which parameter the small sliders show
+    void setEditPattern(int patternIndex);
+    void setPage(GridPage page);
+
+    // the selected step is the one MIDI input and the cursor keys work on
     int getSelectedStep() const;
     void setSelectedStep(int stepIndex);
     void moveSelectedStep(int numSteps, int patternLength);
 
-    // called by the GUI timer: currentStep is -1 if the transport stands
-    void update(int currentStep, juce::uint32 invalidStepMask, int patternLength);
+    // called by the GUI timer: framedStep is the step with the yellow frame (-1: none)
+    void update(int framedStep, juce::uint32 invalidStepMask, int patternLength);
     void resized() override;
 
 private:
     int m_selectedStep = 0;
+    int m_editPattern = 0;
+    GridPage m_page = GridPage::Note;
     std::array<std::unique_ptr<StepColumn>, kMaxSteps> m_columns;
 };
 } // namespace dfd
