@@ -57,13 +57,26 @@ then the parent's JUCE is used.
   the built plugin). Install the build that was tested (run pluginval on the Release build too).
 - Report results honestly: failed tests, skipped steps, things not tested (e.g. Windows/macOS).
 
+## Testing without disturbing the author (the default)
+The author works on the same machine. Everything that opens a window runs in a **virtual display**, never on the real desktop:
+- pluginval: `tools/run_pluginval.sh ...` -- on Linux it starts itself under `xvfb-run -a` if xvfb is installed
+  (`AAT_REAL_DISPLAY=1` switches that off, only for a machine nobody works at);
+- Tester snapshots, the Standalone and any other GUI program: `xvfb-run -a build/DrumFeatureDemonstrator_Tester snapshot gui.png ...`;
+- never move the mouse, click, type into other windows or take screenshots of the desktop (xdotool, XTest, `import -window root`,
+  computer-use, browser automation) without asking first and getting a yes for that specific action. Tests that need mouse or key
+  events run inside the virtual display together with the program under test (start both under one `xvfb-run -a`), or send the
+  events to the window peer inside the Tester (`--keys`, `--drop`);
+- a real DAW can only be tried by the author: install the Release build (see above) and say what to try.
+(On a desktop with mirrored monitors Debug GUI tests may assert in `juce_Displays.cpp`; in a virtual display they do not -- checked: the full pluginval run of the Debug build passes with GUI tests under `xvfb-run -a`.)
+The small tools in `tests/manual/` (`xtest_drag`, `xdnd_*_tool`, `gtk_drag_source.py`) work on whatever display they are started on: **only** start them inside the same `xvfb-run -a` as the program they test (for example one shell script that starts the Standalone, the drag source and `xtest_drag`), never on the real desktop.
+
 ## Before every commit
 1. Build (Debug) without errors and warnings.
 2. `tools/run_pluginval.sh build/DrumFeatureDemonstrator_artefacts/Debug/VST3/DrumFeatureDemonstrator.vst3`
    -- all runs SUCCESS, zero JUCE assertions.
 3. If the sound should not change (refactoring): render before and after with
    `DrumFeatureDemonstrator_Tester render in.wav out.wav` and compare the files (identical = same sound).
-4. After GUI changes: look at `DrumFeatureDemonstrator_Tester snapshot gui.png` (both themes, see below).
+4. After GUI changes (in a virtual display, `xvfb-run -a`): look at `DrumFeatureDemonstrator_Tester snapshot gui.png` (both themes, see below).
 
 ## Conventions
 - Readable code (code style of the author, binding): no one-liners, no magic numbers, no magic
