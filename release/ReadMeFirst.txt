@@ -40,8 +40,9 @@ and press Play (or the space key) for the internal beat.
 
 ## First steps
 1. Load a sample ("Load sample", or drop a file onto the plugin window).
-2. Click some steps in the grid. The button below a step switches its mode: forward, reverse,
-   reverse + play to end; the small slider below that sets note, velocity or pan (buttons below the grid choose the page). In the last mode the sample ends exactly at the end of that step: put it on the
+2. Click some steps in the grid: one button per step, each click goes off -> forward -> reverse -> reverse + play to end.
+   The bars below set note, velocity or pan (buttons below the grid choose the page): draw over them with the mouse.
+   "Step" chooses the note value of one step (1/1 to 1/64, dotted, triplet). In the last mode the sample ends exactly at the end of that step: put it on the
    last step before a beat to lead into the beat with a reversed cymbal.
 3. Four patterns: the "Play" buttons switch patterns on or off (they play one after the other, 1 to 4),
    the "Edit" buttons choose the pattern that the grid shows; a yellow frame marks the pattern that plays.

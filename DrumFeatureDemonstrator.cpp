@@ -121,6 +121,7 @@ void DrumFeatureDemonstratorAudio::readBank(dfd::PatternBank& bank) const
 {
     bank.numSteps = static_cast<int>(std::lround(m_patternLength->load()));
     bank.baseNote = static_cast<double>(m_baseNote->load());
+    bank.stepLengthInBeats = dfd::noteValueLengthInBeats(static_cast<int>(std::lround(m_stepNoteValue->load())));
     for (int patternIndex = 0; patternIndex < dfd::kNumPatterns; ++patternIndex)
     {
         bank.playing[static_cast<std::size_t>(patternIndex)] = m_playPattern[static_cast<std::size_t>(patternIndex)]->load() > kHalf;
@@ -295,6 +296,13 @@ void DrumFeatureDemonstratorAudio::addParameter(std::vector<std::unique_ptr<juce
     paramVector.push_back(jade::makeParameter(g_paramRegionStart));
     paramVector.push_back(jade::makeParameter(g_paramRegionEnd));
     paramVector.push_back(jade::makeParameter(g_paramPatternLength));
+    juce::StringArray noteValueNames;
+    for (int index = 0; index < dfd::kNumNoteValues; ++index)
+    {
+        noteValueNames.add(juce::String(dfd::noteValueName(index)));
+    }
+    paramVector.push_back(std::make_unique<juce::AudioParameterChoice>(juce::ParameterID{g_stepNoteValueId, 1}, "Step note value", noteValueNames, dfd::kDefaultNoteValueIndex));
+    jade::parameterHelpTexts()[g_stepNoteValueId] = "The note value that one step of the pattern represents: 1/1 to 1/64, each normal, dotted or as a triplet.";
     paramVector.push_back(jade::makeParameter(g_paramSyncToHost));
     paramVector.push_back(jade::makeParameter(g_paramInternalBpm));
     paramVector.push_back(jade::makeParameter(g_paramInternalPlay));
@@ -328,6 +336,7 @@ void DrumFeatureDemonstratorAudio::prepareParameter(std::unique_ptr<juce::AudioP
     m_fadeIn = vts->getRawParameterValue(g_paramFadeIn.ID);
     m_fadeOut = vts->getRawParameterValue(g_paramFadeOut.ID);
     m_patternLength = vts->getRawParameterValue(g_paramPatternLength.ID);
+    m_stepNoteValue = vts->getRawParameterValue(g_stepNoteValueId);
     m_syncToHost = vts->getRawParameterValue(g_paramSyncToHost.ID);
     m_internalBpm = vts->getRawParameterValue(g_paramInternalBpm.ID);
     m_internalPlay = vts->getRawParameterValue(g_paramInternalPlay.ID);
@@ -394,6 +403,7 @@ DrumFeatureDemonstratorGUI::DrumFeatureDemonstratorGUI(DrumFeatureDemonstratorAu
  m_playAttachment(apvts, g_paramInternalPlay.ID, m_playButton),
  m_baseNoteAttachment(apvts, g_paramBaseNote.ID, m_baseNoteSlider),
  m_lengthAttachment(apvts, g_paramPatternLength.ID, m_lengthSlider),
+ m_stepValueAttachment(apvts, g_stepNoteValueId, m_stepValueCombo),
  m_bpmAttachment(apvts, g_paramInternalBpm.ID, m_bpmSlider)
 {
     m_loadButton.setButtonText("Load sample");
@@ -422,6 +432,18 @@ DrumFeatureDemonstratorGUI::DrumFeatureDemonstratorGUI(DrumFeatureDemonstratorAu
     addAndMakeVisible(m_lengthLabel);
     addAndMakeVisible(m_lengthSlider);
 
+    setupLabel(m_stepValueLabel, "Step");
+    for (int index = 0; index < dfd::kNumNoteValues; ++index)
+    {
+        m_stepValueCombo.addItem(juce::String(dfd::noteValueName(index)), index + 1);
+    }
+    // the attachment was made before the items existed: show the current value of the parameter
+    const int currentNoteValue = static_cast<int>(std::lround(m_apvts.getRawParameterValue(g_stepNoteValueId)->load()));
+    m_stepValueCombo.setSelectedItemIndex(dfd::clampedNoteValueIndex(currentNoteValue), juce::dontSendNotification);
+    m_stepValueCombo.setTooltip("The note value of one step: 1/1 to 1/64, normal, dotted or as a triplet.");
+    addAndMakeVisible(m_stepValueLabel);
+    addAndMakeVisible(m_stepValueCombo);
+
     m_syncButton.setClickingTogglesState(true);
     m_syncButton.setTooltip(jade::helpText(g_paramSyncToHost));
     addAndMakeVisible(m_syncButton);
@@ -448,9 +470,9 @@ DrumFeatureDemonstratorGUI::DrumFeatureDemonstratorGUI(DrumFeatureDemonstratorAu
     m_stepGrid.setEditPattern(m_patternSelector.getEditPattern());
     addAndMakeVisible(m_patternSelector);
 
-    // the pages of the small sliders under the steps
+    // the pages of the bars under the steps
     constexpr int kPageRadioGroup = 2001;
-    setupLabel(m_pageLabel, "Sliders");
+    setupLabel(m_pageLabel, "Bars");
     addAndMakeVisible(m_pageLabel);
     const std::pair<juce::TextButton*, juce::String> pageButtons[] = {{&m_pageNoteButton, "Note"}, {&m_pageVelocityButton, "Velocity"}, {&m_pagePanButton, "Pan"}};
     for (const auto& entry : pageButtons)
@@ -458,7 +480,7 @@ DrumFeatureDemonstratorGUI::DrumFeatureDemonstratorGUI(DrumFeatureDemonstratorAu
         entry.first->setButtonText(entry.second);
         entry.first->setClickingTogglesState(true);
         entry.first->setRadioGroupId(kPageRadioGroup);
-        entry.first->setTooltip("The small sliders under the steps show the " + entry.second.toLowerCase() + " of every step.");
+        entry.first->setTooltip("The bars under the steps show the " + entry.second.toLowerCase() + " of every step.");
         addAndMakeVisible(*entry.first);
     }
     m_pageNoteButton.setToggleState(true, juce::dontSendNotification);
@@ -855,7 +877,7 @@ void DrumFeatureDemonstratorGUI::resized()
     const int height = getHeight();
     const int rowHeight = static_cast<int>(kRowFractionTop * static_cast<float>(height));
     const juce::Font rowFont(juce::FontOptions(kFontFractionOfRow * static_cast<float>(rowHeight)));
-    for (juce::Label* label : {&m_sampleLabel, &m_baseNoteLabel, &m_lengthLabel, &m_tempoLabel, &m_hostBpmLabel, &m_noticeLabel, &m_infoLabel, &m_pageLabel})
+    for (juce::Label* label : {&m_sampleLabel, &m_baseNoteLabel, &m_lengthLabel, &m_stepValueLabel, &m_tempoLabel, &m_hostBpmLabel, &m_noticeLabel, &m_infoLabel, &m_pageLabel})
     {
         label->setFont(rowFont);
     }
@@ -876,6 +898,7 @@ void DrumFeatureDemonstratorGUI::resized()
     m_tempoLabel.setBounds(tempoArea.removeFromLeft(tempoArea.getWidth() / 3));
     m_hostBpmLabel.setBounds(tempoArea);
     m_bpmSlider.setBounds(tempoArea);
+    placeControlWithLabel(secondRow.removeFromLeft(4 * unit).reduced(margin / 2, 0), m_stepValueLabel, m_stepValueCombo);
     m_noticeLabel.setBounds(secondRow);
 
     r.removeFromTop(margin);

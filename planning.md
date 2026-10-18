@@ -132,3 +132,4 @@ None. (The five questions of draft v2 are answered and moved to section 7.)
 - 2026-10-07: W6 done (branch `feature/gui`, version 0.4.0): waveform view with handles and drop, step grid, tempo section, notification, base note, pattern length, declick (see DEVELOPMENT_LOG.md).
 - 2026-10-07: W7 done (branch `feature/presets-state`, version 0.5.0): sample stored with presets (name) and DAW projects (embedded), factory presets, manual (see DEVELOPMENT_LOG.md).
 - 2026-10-18: four patterns (play row, edit row, chain from 1 to 4, all in the presets), pan per step and the redesigned grid (one slider per step with note / velocity / pan pages) done in three steps, version 0.11.0 (see DEVELOPMENT_LOG.md, Round 7).
+- 2026-10-19: note value of a step (1/1 to 1/64, dotted, triplet), one four-state button per step, bars to draw on, presets loaded when the first editor opens (version 0.12.0, DEVELOPMENT_LOG.md Round 8).

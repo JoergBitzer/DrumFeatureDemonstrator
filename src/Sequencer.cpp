@@ -13,7 +13,7 @@ constexpr int kNotPlaying = -1;
 void locateInChain(const PatternBank& bank, double positionPpq, int& patternIndex, int& stepIndex)
 {
     const long long chainSteps = static_cast<long long>(numPlayingPatterns(bank)) * numUsedSteps(bank);
-    const long long stepCount = static_cast<long long>(std::floor(positionPpq * kStepsPerBeat));
+    const long long stepCount = static_cast<long long>(std::floor(positionPpq / bank.stepLengthInBeats));
     long long stepInChain = stepCount % chainSteps;
     if (stepInChain < 0)
     {

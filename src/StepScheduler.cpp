@@ -21,7 +21,6 @@ namespace
 {
 constexpr int kPassesBefore = 1; // look-ahead: a sound starts at most one pass of the chain before its step
 constexpr int kPassesAfter = 1;
-constexpr double kStepLengthInBeats = 1.0 / kStepsPerBeat;
 
 bool isTransportValid(const Transport& transport)
 {
@@ -57,16 +56,16 @@ int chainLengthInSteps(const PatternBank& bank)
 
 double chainLengthInBeats(const PatternBank& bank)
 {
-    return chainLengthInSteps(bank) * kStepLengthInBeats;
+    return chainLengthInSteps(bank) * bank.stepLengthInBeats;
 }
 
 // start of a sound in beats (ppq): globalStepIndex counts the steps of the whole chain from the position 0 on
-double startInBeats(const StepSettings& step, long long globalStepIndex, double durationInBeats)
+double startInBeats(const StepSettings& step, long long globalStepIndex, double stepLengthInBeats, double durationInBeats)
 {
-    const double stepStart = static_cast<double>(globalStepIndex) * kStepLengthInBeats;
+    const double stepStart = static_cast<double>(globalStepIndex) * stepLengthInBeats;
     if (step.mode == StepMode::ReverseToEnd)
     {
-        const double anchor = stepStart + kStepLengthInBeats;
+        const double anchor = stepStart + stepLengthInBeats;
         return anchor - durationInBeats;
     }
     return stepStart;
@@ -115,6 +114,7 @@ PatternBank makeBank(const Pattern& pattern)
     PatternBank bank;
     bank.numSteps = pattern.numSteps;
     bank.baseNote = pattern.baseNote;
+    bank.stepLengthInBeats = pattern.stepLengthInBeats;
     bank.steps[0] = pattern.steps;
     return bank;
 }
@@ -210,7 +210,12 @@ double samplesPerBeat(const Transport& transport)
 
 double samplesPerStep(const Transport& transport)
 {
-    return samplesPerBeat(transport) / kStepsPerBeat;
+    return samplesPerStep(transport, kDefaultStepLengthInBeats);
+}
+
+double samplesPerStep(const Transport& transport, double stepLengthInBeats)
+{
+    return samplesPerBeat(transport) * stepLengthInBeats;
 }
 
 bool isPlayToEndAllowed(const Pattern& pattern, const StepSettings& step, const SampleRegion& region,
@@ -232,7 +237,7 @@ bool isPlayToEndAllowed(const PatternBank& bank, const StepSettings& step, const
     }
     const double ratio = playbackRatio(stepSemitones(bank, step), region.fileSampleRate, transport.hostSampleRate);
     const double duration = durationInHostSamples(region, ratio);
-    const double patternLength = numUsedSteps(bank) * samplesPerStep(transport);
+    const double patternLength = numUsedSteps(bank) * samplesPerStep(transport, bank.stepLengthInBeats);
     return duration <= patternLength;
 }
 
@@ -281,7 +286,7 @@ void scheduleBlock(const PatternBank& bank, const SampleRegion& region, const Tr
                     continue;
                 }
                 const double duration = durationInBeats(bank, step, region, transport);
-                const double start = startInBeats(step, globalStepIndexOf(bank, pass, chainSlot, stepIndex), duration);
+                const double start = startInBeats(step, globalStepIndexOf(bank, pass, chainSlot, stepIndex), bank.stepLengthInBeats, duration);
                 const double offsetInSamples = std::round((start - blockStartPpq) * beatLength);
                 if (offsetInSamples < 0.0)
                 {
@@ -353,7 +358,7 @@ int countMissedPlayToEnd(const PatternBank& bank, const SampleRegion& region, co
                     continue;
                 }
                 const double duration = durationInBeats(bank, step, region, transport);
-                const double start = startInBeats(step, globalStepIndexOf(bank, pass, chainSlot, stepIndex), duration);
+                const double start = startInBeats(step, globalStepIndexOf(bank, pass, chainSlot, stepIndex), bank.stepLengthInBeats, duration);
                 const double anchor = start + duration;
                 if (start < positionPpq && positionPpq < anchor)
                 {

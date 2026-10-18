@@ -3,6 +3,7 @@
 
 #include <juce_core/juce_core.h>
 
+#include "../src/NoteValues.h"
 #include "../src/Sequencer.h"
 
 namespace
@@ -64,6 +65,8 @@ public:
         testSequencerReportsThePattern();
         testMissedSoundsInTheChain();
         testShortPatternsAndFourPatterns();
+        testNoteValues();
+        testStepLengthInTheSchedule();
     }
 
 private:
@@ -195,6 +198,76 @@ private:
         expectEquals(dfd::countMissedPlayToEnd(bank, region, makeTransport(), 3.9), 1);
         expectEquals(dfd::countMissedPlayToEnd(bank, region, makeTransport(), 3.5), 0);
         expectEquals(dfd::countMissedPlayToEnd(bank, region, makeTransport(), 4.5), 0);
+    }
+
+    void testNoteValues()
+    {
+        beginTest("note values: lengths in beats and names");
+        expectEquals(dfd::kNumNoteValues, 21);
+        expectWithinAbsoluteError(dfd::noteValueLengthInBeats(0), 4.0, 1.0e-12);            // 1/1
+        expectWithinAbsoluteError(dfd::noteValueLengthInBeats(1), 6.0, 1.0e-12);            // 1/1 dotted
+        expectWithinAbsoluteError(dfd::noteValueLengthInBeats(2), 8.0 / 3.0, 1.0e-12);      // 1/1 triplet
+        expectWithinAbsoluteError(dfd::noteValueLengthInBeats(dfd::kDefaultNoteValueIndex), 0.25, 1.0e-12); // 1/16
+        expectWithinAbsoluteError(dfd::noteValueLengthInBeats(13), 0.375, 1.0e-12);         // 1/16 dotted
+        expectWithinAbsoluteError(dfd::noteValueLengthInBeats(14), 1.0 / 6.0, 1.0e-12);     // 1/16 triplet
+        expectWithinAbsoluteError(dfd::noteValueLengthInBeats(18), 0.0625, 1.0e-12);        // 1/64 (index 18 = base 6)
+        expectEquals(juce::String(dfd::noteValueName(0)), juce::String("1/1"));
+        expectEquals(juce::String(dfd::noteValueName(13)), juce::String("1/16 dotted"));
+        expectEquals(juce::String(dfd::noteValueName(20)), juce::String("1/64 triplet"));
+        expectEquals(juce::String(dfd::noteValueName(dfd::kDefaultNoteValueIndex)), juce::String("1/16"));
+        expectWithinAbsoluteError(dfd::noteValueLengthInBeats(-5), 4.0, 1.0e-12);           // clamped
+        expectWithinAbsoluteError(dfd::noteValueLengthInBeats(99), 0.0625 * 2.0 / 3.0, 1.0e-12); // clamped to the last: 1/64 triplet
+    }
+
+    void testStepLengthInTheSchedule()
+    {
+        beginTest("the step length changes the timing of the pattern and of play to end");
+        // 1/8 notes: a step lasts 0.5 beat = 12000 samples at 120 bpm / 48 kHz, 16 steps = 8 beats
+        dfd::PatternBank bank;
+        bank.stepLengthInBeats = 0.5;
+        setStep(bank, 0, 2, dfd::StepMode::Forward);
+        const std::vector<dfd::SoundStart> starts = schedule(bank, makeRegion(1000.0), 0.0, 16.0);
+        expectEquals(static_cast<int>(starts.size()), 2); // step 3 of the first and the second pass
+        if (starts.size() == 2)
+        {
+            expectEquals(starts[0].sampleOffsetInBlock, static_cast<int>(2 * 0.5 * kSamplesPerBeat));
+            expectEquals(starts[1].sampleOffsetInBlock, static_cast<int>((8.0 + 1.0) * kSamplesPerBeat));
+        }
+
+        // play to end: a sample of 1.5 steps (1/8) ends at the end of its step and starts 0.75 beat before it
+        dfd::PatternBank rteBank;
+        rteBank.stepLengthInBeats = 0.5;
+        setStep(rteBank, 0, 3, dfd::StepMode::ReverseToEnd);
+        const dfd::SampleRegion region = makeRegion(0.75 * kSamplesPerBeat); // 0.75 beat
+        const std::vector<dfd::SoundStart> rte = schedule(rteBank, region, 0.0, 4.0);
+        expectEquals(static_cast<int>(rte.size()), 1);
+        if (rte.size() == 1)
+        {
+            // step 4 ends at 4 * 0.5 = 2.0 beats: the sound starts at 1.25
+            expectEquals(rte[0].sampleOffsetInBlock, static_cast<int>(1.25 * kSamplesPerBeat));
+        }
+        // the length limit is one pattern of this step length: 16 steps of 1/64 = 1 beat
+        dfd::PatternBank tiny;
+        tiny.stepLengthInBeats = dfd::noteValueLengthInBeats(18);
+        dfd::StepSettings& tinyStep = dfd::stepAt(tiny, 0, 0);
+        tinyStep.active = true;
+        tinyStep.mode = dfd::StepMode::ReverseToEnd;
+        expect(dfd::isPlayToEndAllowed(tiny, tinyStep, makeRegion(1.0 * kSamplesPerBeat), makeTransport()));
+        expect(dfd::isPlayToEndAllowed(tiny, tinyStep, makeRegion(1.01 * kSamplesPerBeat), makeTransport()) == false);
+
+        // the sequencer locates the step with the step length
+        dfd::Sequencer sequencer;
+        std::vector<dfd::SoundStart> soundStarts;
+        soundStarts.reserve(dfd::kMaxSoundStartsPerBlock);
+        dfd::SequencerResult result;
+        dfd::BlockTransport transport;
+        transport.isPlaying = true;
+        transport.hasPosition = true;
+        transport.bpm = kBpm120;
+        transport.positionPpq = 1.2; // 1/8 steps: step index 2
+        sequencer.process(bank, makeRegion(1000.0), kRate48k, transport, 64, soundStarts, result);
+        expectEquals(result.currentStep, 2);
+        expectEquals(result.currentPattern, 0);
     }
 
     void testShortPatternsAndFourPatterns()

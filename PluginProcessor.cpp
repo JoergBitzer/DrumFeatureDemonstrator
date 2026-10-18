@@ -1,6 +1,7 @@
 #include "PluginProcessor.h"
 #include "src/SampleLoader.h"
 #include "src/SampleStore.h"
+#include "src/DebugLog.h"
 #include "tools/DayNightLookAndFeel.h"
 #include "PluginEditor.h"
 
@@ -28,11 +29,8 @@ DrumFeatureDemonstratorAudioProcessor::DrumFeatureDemonstratorAudioProcessor()
     // if needed add categories, if g_PresetCategories contains one empty string "", nothing happened
     m_presets.addCategory(g_PresetCategories);
 
-#ifdef FACTORY_PRESETS    
-    m_presets.DeployFactoryPresets();
-#endif
-    
-	m_presets.loadfromFileAllUserPresets();    
+    // the presets (deploying the factory presets, reading all preset files) are loaded when the first editor is opened:
+    // a host creates plug-in instances much more often (scanning, tests) than it opens editors
 
     setLatencySamples(m_algo.getLatency());
 }
@@ -309,8 +307,26 @@ bool DrumFeatureDemonstratorAudioProcessor::hasEditor() const
     return true; // (change this to false if you choose to not supply an editor)
 }
 
+void DrumFeatureDemonstratorAudioProcessor::ensurePresetsLoaded()
+{
+    if (m_presetsLoaded)
+    {
+        return;
+    }
+    const juce::int64 startTime = juce::Time::getMillisecondCounter();
+#ifdef FACTORY_PRESETS
+    m_presets.DeployFactoryPresets();
+#endif
+    const juce::int64 deployedTime = juce::Time::getMillisecondCounter();
+    m_presets.loadfromFileAllUserPresets();
+    m_presetsLoaded = true;
+    dfd::debugLog("presets: deployed in " + juce::String(deployedTime - startTime) + " ms, read in "
+                  + juce::String(juce::Time::getMillisecondCounter() - deployedTime) + " ms");
+}
+
 juce::AudioProcessorEditor* DrumFeatureDemonstratorAudioProcessor::createEditor()
 {
+    ensurePresetsLoaded();
     return new DrumFeatureDemonstratorAudioProcessorEditor (*this);
 }
 

@@ -48,6 +48,9 @@ public:
     void getStateInformation (juce::MemoryBlock& destData) override;
     void setStateInformation (const void* data, int sizeInBytes) override;
 
+    // deploys the factory presets and reads the preset files (once; called before the first editor is created)
+    void ensurePresetsLoaded();
+
     // message thread: reads the sample file and hands it to the audio thread; false if it cannot be read
     bool loadSample(const juce::File& file) override;
     juce::String getSampleName() const override;
@@ -78,6 +81,7 @@ private:
 	PresetHandler m_presets;
     float m_pluginScaleFactor = 1.0;    
     juce::String m_sampleName;
+    bool m_presetsLoaded = false; // see ensurePresetsLoaded()
     juce::String m_loadedSampleFileName; // name of the copy in the samples folder that is loaded now
 #if WITH_MIDIKEYBOARD    
     MidiKeyboardState m_keyboardState;

@@ -11,7 +11,7 @@
 \hypersetup{colorlinks=true, linkcolor=red, urlcolor=red, pdftitle={DrumFeatureDemonstrator Documentation}}
 
 % ---- change these ------------------------------------------------------------
-\newcommand{\pluginversion}{0.11.0}   % the version in CMakeLists.txt
+\newcommand{\pluginversion}{0.12.0}   % the version in CMakeLists.txt
 \newcommand{\pluginauthor}{Joerg Bitzer}
 \newcommand{\sourceurl}{https://github.com/JoergBitzer/DrumFeatureDemonstrator}
 % -------------------------------------------------------------------------------
@@ -81,13 +81,17 @@ Linux:   /home/yourUSERNAME/.config/Jade_Hochschule/DrumFeatureDemonstrator
     playback; the patterns that are on are played one after the other from 1 to 4 (with 1 and 3 on: 1, 3, 1, 3, \dots; the pattern length is
     the same for all). The lower row (\textbf{Edit}) selects the pattern that the step grid shows and edits: it is lit in a brighter red, and a
     \textbf{yellow frame} marks the pattern that plays right now.
-    \item \textbf{Steps}: per step a button (sample on/off), below it the \textbf{mode button}
-    (click: forward $\rightarrow$ reverse $\rightarrow$ reverse + play to end $\rightarrow$ forward) and one small \textbf{slider}. The buttons below the grid
-    choose what the sliders show (the \emph{page}): the \textbf{note} (a MIDI note, shown as e.g. C4; the sample sounds at its original pitch when the note
-    equals the base note), the \textbf{velocity} (MIDI velocity 1 to 127) or the \textbf{pan} (left -- centre -- right, double-click puts a slider back to its default).
-    The yellow frame in the grid shows the step that is playing (if the playing pattern is the one shown).
+    \item \textbf{Steps}: every step has \textbf{one button with four states}. Each click goes one state further: off $\rightarrow$ forward $\rightarrow$
+    reverse $\rightarrow$ reverse + play to end $\rightarrow$ off (the symbol shows the state). Below the buttons are the \textbf{bars}: one vertical bar per step,
+    side by side. The buttons at the bottom choose what the bars show (the \emph{page}): the \textbf{note} (a MIDI note, shown as e.g. C4; the sample sounds at its
+    original pitch when the note equals the base note), the \textbf{velocity} (MIDI velocity 1 to 127) or the \textbf{pan} (left -- centre -- right).
+    \textbf{Draw on the bars with the mouse}: press, and drag from left to right (or in any direction): every bar the mouse passes takes the height of the mouse, so a
+    line sets all the values at once. A double-click puts a bar back to its default. The yellow frame in the grid shows the step that is playing
+    (if the playing pattern is the one shown).
+    \item \textbf{Step}: the \textbf{note value} that one step represents, from 1/1 to 1/64, each normal, dotted ($\times 1.5$) or as a triplet ($\times 2/3$). The default is 1/16.
+    A pattern of 16 steps of 1/16 is one bar of 4/4; with 12 steps of 1/8 triplets it is one bar of triplets. Play to end ends at the end of the step, whatever its length.
     \item \textbf{Info line} (below the steps): shows the value of the control under the mouse and of the control you change,
-    e.g. ``Pattern 1, step 5 note: E4 (MIDI note 64)'' -- there is no room for an edit field per slider.
+    e.g. ``Pattern 1, step 5 note: E4 (MIDI note 64)'' -- there is no room for an edit field per bar.
     \item \textbf{Preset handler} and \textbf{day/night}: as usual; Save turns red when you change a control.
     Presets contain all four patterns, which of them play, the region, the fades and the name of the sample. Factory presets keep the sample you have loaded.
 \end{enumerate}
@@ -104,7 +108,7 @@ is also heard. The selection does not move by itself; use the cursor keys to go 
     \item The sound ends at the \emph{end of the step} on which the mode is set. To lead into beat 1, set it on step 16 of a pattern of 16 steps -- with several patterns on, the next beat 1 is the start of the next pattern of the chain (the sound then starts in the time of the pattern before).
     \item If the start time has already passed (the transport starts or jumps into the run-up), the sound is
     \emph{not} played and a notice appears.
-    \item Play to end is only possible if the sample (at its pitch) is not longer than the pattern. Otherwise the mode button
+    \item Play to end is only possible if the sample (at its pitch) is not longer than the pattern (the number of steps times the length of a step). Otherwise the mode button
     is outlined in red and a notice is shown: shorten the sample with the end handle, raise the pitch or lengthen the pattern.
     \item Tempo changes during the run-up are not followed.
     \item Forward + play to end is not offered; reverse the sample file beforehand if you need it.
