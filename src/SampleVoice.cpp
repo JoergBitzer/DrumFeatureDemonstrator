@@ -5,6 +5,15 @@
 
 namespace dfd
 {
+PanGains panGains(float pan)
+{
+    PanGains gains;
+    const float clampedPan = std::max(-1.0f, std::min(1.0f, pan));
+    gains.left = std::min(1.0f, 1.0f - clampedPan);
+    gains.right = std::min(1.0f, 1.0f + clampedPan);
+    return gains;
+}
+
 void SampleVoice::start(const VoiceStart& voiceStart, unsigned long long order)
 {
     m_start = voiceStart;
@@ -89,6 +98,7 @@ float SampleVoice::fadeGain() const
 void SampleVoice::renderAdd(float* const* outputs, int numOutputChannels, int firstSample, int numSamples)
 {
     const int numSampleChannels = m_start.sample->numChannels();
+    const PanGains gains = panGains(m_start.pan);
     const double step = m_start.playbackRatio;
     for (int sampleIndex = firstSample; sampleIndex < firstSample + numSamples; ++sampleIndex)
     {
@@ -101,7 +111,19 @@ void SampleVoice::renderAdd(float* const* outputs, int numOutputChannels, int fi
         for (int outputIndex = 0; outputIndex < numOutputChannels; ++outputIndex)
         {
             const int sourceChannel = std::min(outputIndex, numSampleChannels - 1);
-            outputs[outputIndex][sampleIndex] += gain * interpolatedValue(sourceChannel);
+            float channelGain = gain;
+            if (numOutputChannels >= 2)
+            {
+                if (outputIndex == 0)
+                {
+                    channelGain *= gains.left;
+                }
+                if (outputIndex == 1)
+                {
+                    channelGain *= gains.right;
+                }
+            }
+            outputs[outputIndex][sampleIndex] += channelGain * interpolatedValue(sourceChannel);
         }
         if (m_start.reverse)
         {
