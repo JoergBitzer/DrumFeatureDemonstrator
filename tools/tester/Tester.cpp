@@ -26,6 +26,8 @@
       --load-state <file>   restore such a state first (before --preset, --set, --sample)
       --click <x,y>         snapshot: a mouse click (position as fractions of the window size, e.g. 0.5,0.9); repeatable, in the
                             order given, after --keys (synthetic events for the window of the Tester, nothing of the desktop)
+      --drag <x1,y1,x2,y2>  snapshot: press the mouse at (x1,y1), drag to (x2,y2) in 25 steps and release (fractions of the window size);
+                            repeatable, after --click
       --keys <list>         snapshot: send keys to the window after the notes: left,right,up,down,home,end,space (comma separated); afterwards 0.5 s are played
       --drop <file>         snapshot: simulate dropping this file onto the window (at the given --drop-at position) before the snapshot
       --drop-at <x,y>       position of the simulated drop as fractions of the window size (default 0.5,0.3)
@@ -232,7 +234,7 @@ int main(int argc, char* argv[])
 
     // options
     juce::String presetPath, audioPath, saveStatePath, loadStatePath, dropPath, dropAt = "0.5,0.3", keyNames;
-    juce::StringArray clickArgs;
+    juce::StringArray clickArgs, dragArgs;
     juce::StringArray samplePaths;
     juce::StringArray noteArgs;
     double seconds = 1.0;
@@ -251,6 +253,7 @@ int main(int argc, char* argv[])
         else if (a == "--blocksize" && hasValue) blockSize = juce::jmax(16, args[++i].getIntValue());
         else if (a == "--save-state" && hasValue) saveStatePath = args[++i];
         else if (a == "--load-state" && hasValue) loadStatePath = args[++i];
+        else if (a == "--drag" && hasValue)      dragArgs.add(args[++i]);
         else if (a == "--click" && hasValue)     clickArgs.add(args[++i]);
         else if (a == "--keys" && hasValue)      keyNames = args[++i];
         else if (a == "--drop" && hasValue)      dropPath = args[++i];
@@ -407,6 +410,36 @@ int main(int argc, char* argv[])
         peer->handleMouseEvent(source.getType(), position, juce::ModifierKeys(), noPressure, noOrientation, now);
         peer->handleMouseEvent(source.getType(), position, juce::ModifierKeys::leftButtonModifier, noPressure, noOrientation, now);
         peer->handleMouseEvent(source.getType(), position, juce::ModifierKeys(), noPressure, noOrientation, now);
+        process(*processor, audio, (int) (0.1 * sampleRate), blockSize, nullptr, true, {});
+    }
+    for (const auto& dragArg : dragArgs)
+    {
+        auto* peer = editor->getPeer();
+        const auto fractions = juce::StringArray::fromTokens(dragArg, ",", "");
+        if (peer == nullptr || fractions.size() < 4)
+        {
+            std::cout << "Cannot send the drag " << dragArg << "\n";
+            return 1;
+        }
+        auto positionOf = [&](double fx, double fy)
+        { return juce::Point<float>((float) (fx * editor->getWidth()), (float) (fy * editor->getHeight())); };
+        const auto source = juce::Desktop::getInstance().getMainMouseSource();
+        const auto noPressure = juce::MouseInputSource::defaultPressure;
+        const auto noOrientation = juce::MouseInputSource::defaultOrientation;
+        const auto leftDown = juce::ModifierKeys::leftButtonModifier;
+        const juce::int64 now = juce::Time::currentTimeMillis();
+        const auto start = positionOf(fractions[0].getDoubleValue(), fractions[1].getDoubleValue());
+        const auto end = positionOf(fractions[2].getDoubleValue(), fractions[3].getDoubleValue());
+        constexpr int numSteps = 25;
+        peer->handleMouseEvent(source.getType(), start, juce::ModifierKeys(), noPressure, noOrientation, now);
+        peer->handleMouseEvent(source.getType(), start, leftDown, noPressure, noOrientation, now);
+        for (int step = 1; step <= numSteps; ++step)
+        {
+            const auto position = start + (end - start) * ((float) step / (float) numSteps);
+            peer->handleMouseEvent(source.getType(), position, leftDown, noPressure, noOrientation, now);
+            process(*processor, audio, (int) (0.01 * sampleRate), blockSize, nullptr, true, {});
+        }
+        peer->handleMouseEvent(source.getType(), end, juce::ModifierKeys(), noPressure, noOrientation, now);
         process(*processor, audio, (int) (0.1 * sampleRate), blockSize, nullptr, true, {});
     }
     if (dropPath.isNotEmpty())

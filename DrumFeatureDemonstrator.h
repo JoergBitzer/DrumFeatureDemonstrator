@@ -10,6 +10,7 @@
 #include "src/VoiceBank.h"
 #include "src/Sequencer.h"
 #include "src/StepParameters.h"
+#include "src/NoteValues.h"
 #include "src/platform/XdndTarget.h"
 #include "gui/WaveformView.h"
 #include "gui/StepGrid.h"
@@ -28,6 +29,9 @@ const struct
 	const bool logFrequency = false;
 	const std::string help = "Number of 1/16 steps of the pattern (8 - 32).";
 }g_paramPatternLength;
+
+// the note value of one step: a choice parameter, made in addParameter()
+const char* const g_stepNoteValueId = "StepNoteValue";
 
 const struct
 {
@@ -221,6 +225,7 @@ private:
     double m_fadeInSamples = 0.0;  // of the block being processed, in file samples
     double m_fadeOutSamples = 0.0;
     std::atomic<float>* m_patternLength = nullptr;
+    std::atomic<float>* m_stepNoteValue = nullptr;
     std::atomic<float>* m_syncToHost = nullptr;
     std::atomic<float>* m_internalBpm = nullptr;
     std::atomic<float>* m_internalPlay = nullptr;
@@ -289,6 +294,8 @@ private:
     juce::Slider m_baseNoteSlider;
     juce::Label m_lengthLabel;
     juce::Slider m_lengthSlider;
+    juce::Label m_stepValueLabel;
+    juce::ComboBox m_stepValueCombo;
     juce::TextButton m_syncButton;
     juce::TextButton m_playButton;
     juce::Label m_tempoLabel;
@@ -310,6 +317,7 @@ private:
     juce::AudioProcessorValueTreeState::ButtonAttachment m_playAttachment;
     juce::AudioProcessorValueTreeState::SliderAttachment m_baseNoteAttachment;
     juce::AudioProcessorValueTreeState::SliderAttachment m_lengthAttachment;
+    juce::AudioProcessorValueTreeState::ComboBoxAttachment m_stepValueAttachment;
     juce::AudioProcessorValueTreeState::SliderAttachment m_bpmAttachment;
 
     std::shared_ptr<const dfd::SampleData> m_shownSample;

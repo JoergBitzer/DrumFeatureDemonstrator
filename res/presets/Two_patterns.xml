@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<DrumFeatureDemonstratorVTS presetname="Two patterns" category="Unknown" bank="Factory" presetversion="4">
+<DrumFeatureDemonstratorVTS presetname="Two patterns" category="Unknown" bank="Factory" presetversion="5">
   <PARAM id="BaseNote" value="60.0"/>
   <PARAM id="Declick" value="0.0"/>
   <PARAM id="FadeIn" value="0.0"/>
@@ -9,6 +9,7 @@
   <PARAM id="PatternLength" value="16.0"/>
   <PARAM id="RegionEnd" value="1.0"/>
   <PARAM id="RegionStart" value="0.0"/>
+  <PARAM id="StepNoteValue" value="12.0"/>
   <PARAM id="SyncToHost" value="1.0"/>
   <PARAM id="PlayPattern1" value="1.0"/>
   <PARAM id="PlayPattern2" value="1.0"/>

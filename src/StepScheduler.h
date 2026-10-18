@@ -9,13 +9,16 @@
 #include <array>
 #include <vector>
 
+#include "NoteValues.h"
+
 namespace dfd
 {
 constexpr int kMinSteps = 8;
 constexpr int kMaxSteps = 32;
 constexpr int kDefaultSteps = 16;
 constexpr int kNumPatterns = 4;
-constexpr int kStepsPerBeat = 4; // 1/16 notes
+constexpr int kStepsPerBeat = 4; // 1/16 notes: the default length of a step (see NoteValues.h for the others)
+constexpr double kDefaultStepLengthInBeats = 1.0 / kStepsPerBeat;
 constexpr int kMaxSoundStartsPerBlock = 256; // scheduleBlock stops here, so a reserved output vector never reallocates
 constexpr double kSemitonesPerOctave = 12.0;
 constexpr double kSecondsPerMinute = 60.0;
@@ -42,6 +45,7 @@ struct Pattern
 {
     int numSteps = kDefaultSteps;
     double baseNote = kDefaultBaseNote;
+    double stepLengthInBeats = kDefaultStepLengthInBeats;
     std::array<StepSettings, kMaxSteps> steps;
 };
 
@@ -51,6 +55,7 @@ struct PatternBank
 {
     int numSteps = kDefaultSteps;
     double baseNote = kDefaultBaseNote;
+    double stepLengthInBeats = kDefaultStepLengthInBeats; // the note value of one step, in beats (quarter notes)
     std::array<std::array<StepSettings, kMaxSteps>, kNumPatterns> steps;
     std::array<bool, kNumPatterns> playing{{true, false, false, false}};
 };
@@ -102,7 +107,8 @@ double stepSemitones(const PatternBank& bank, const StepSettings& step);
 double playbackRatio(double pitchSemitones, double fileSampleRate, double hostSampleRate);
 double durationInHostSamples(const SampleRegion& region, double playbackRatio);
 double samplesPerBeat(const Transport& transport);
-double samplesPerStep(const Transport& transport);
+double samplesPerStep(const Transport& transport); // of a 1/16 step
+double samplesPerStep(const Transport& transport, double stepLengthInBeats);
 
 // true if the sample at the pitch of the step fits into one pattern (the condition for ReverseToEnd)
 bool isPlayToEndAllowed(const Pattern& pattern, const StepSettings& step, const SampleRegion& region, const Transport& transport);

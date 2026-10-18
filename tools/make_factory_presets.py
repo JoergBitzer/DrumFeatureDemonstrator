@@ -7,7 +7,7 @@ The presets contain no sample (the samples are not part of the repository): they
 """
 import os
 
-PRESET_VERSION = 4 # 2: step note and velocity 1 - 127; 3: fade in / fade out; 4: four patterns, pan
+PRESET_VERSION = 5 # 2: step note and velocity 1 - 127; 3: fade in / fade out; 4: four patterns, pan; 5: note value of a step
 BASE_NOTE = 60
 NUM_STEPS = 32
 NUM_PATTERNS = 4
@@ -15,10 +15,11 @@ FORWARD, REVERSE, REVERSE_TO_END = 0, 1, 2
 
 SINGLE_DEFAULTS = {
     "BaseNote": 60.0, "Declick": 0.0, "FadeIn": 0.0, "FadeOut": 0.0, "InternalBpm": 120.0, "InternalPlay": 0.0, "PatternLength": 16.0,
-    "RegionEnd": 1.0, "RegionStart": 0.0, "SyncToHost": 1.0,
+    "RegionEnd": 1.0, "RegionStart": 0.0, "SyncToHost": 1.0, "StepNoteValue": 12.0, # 12 = 1/16
 }
 
-# name: (pattern length, [pattern 1, pattern 2, ...], patterns that play)
+# name: (pattern length, [pattern 1, pattern 2, ...], patterns that play[, note value index])
+# note value index: base * 3 + flavour; base 0 = 1/1, 1 = 1/2, 2 = 1/4, 3 = 1/8, 4 = 1/16 (the default, 12), 5 = 1/32, 6 = 1/64; flavour 0 normal, 1 dotted, 2 triplet
 # a pattern: {step number (1-based): (mode, semitones relative to the base note, velocity 0 - 1 (written as 1 - 127), pan -1 .. 1)}
 PRESETS = {
     "Four on the floor": (16, [{1: (FORWARD, 0, 1.0, 0), 5: (FORWARD, 0, 0.9, 0), 9: (FORWARD, 0, 1.0, 0), 13: (FORWARD, 0, 0.9, 0)}], [1]),
@@ -30,6 +31,8 @@ PRESETS = {
     "Two patterns": (16, [{1: (FORWARD, 0, 1.0, 0), 5: (FORWARD, 0, 0.8, 0), 9: (FORWARD, 0, 1.0, 0), 13: (FORWARD, 0, 0.8, 0)},
                           {1: (FORWARD, 0, 1.0, 0), 4: (FORWARD, 7, 0.7, -0.5), 7: (FORWARD, 7, 0.7, 0.5), 9: (FORWARD, 0, 1.0, 0),
                            12: (REVERSE, -5, 0.8, 0), 16: (REVERSE_TO_END, 0, 0.9, 0)}], [1, 2]),
+    "Triplets": (12, [{1: (FORWARD, 0, 1.0, 0), 4: (FORWARD, 0, 0.8, 0), 7: (FORWARD, 0, 1.0, 0), 10: (FORWARD, 0, 0.8, 0),
+                      3: (FORWARD, 7, 0.5, 0.4), 6: (FORWARD, 7, 0.5, -0.4), 12: (REVERSE_TO_END, 0, 0.8, 0)}], [1], 11),  # 1/8 triplets
     "Four patterns": (8, [{1: (FORWARD, 0, 1.0, 0), 5: (FORWARD, 0, 0.8, 0)},
                           {1: (FORWARD, 0, 1.0, 0), 3: (FORWARD, 5, 0.6, -0.6), 5: (FORWARD, 0, 0.8, 0), 7: (FORWARD, 5, 0.6, 0.6)},
                           {1: (FORWARD, 0, 1.0, 0), 5: (FORWARD, 7, 0.8, 0), 8: (REVERSE_TO_END, 0, 0.8, 0)},
@@ -44,9 +47,10 @@ def step_prefix(pattern_index):
     return "P%dStep" % (pattern_index + 1)
 
 
-def preset_xml(name, length, patterns, playing):
+def preset_xml(name, length, patterns, playing, note_value=12):
     values = dict(SINGLE_DEFAULTS)
     values["PatternLength"] = float(length)
+    values["StepNoteValue"] = float(note_value)
     lines = []
     for key in sorted(values):
         lines.append('  <PARAM id="%s" value="%.1f"/>' % (key, values[key]))
@@ -72,10 +76,12 @@ def preset_xml(name, length, patterns, playing):
 def main():
     folder = os.path.join("res", "presets")
     os.makedirs(folder, exist_ok=True)
-    for name, (length, patterns, playing) in PRESETS.items():
+    for name, entry in PRESETS.items():
+        length, patterns, playing = entry[0], entry[1], entry[2]
+        note_value = entry[3] if len(entry) > 3 else 12
         file_name = name.replace(" ", "_") + ".xml"
         with open(os.path.join(folder, file_name), "w") as handle:
-            handle.write(preset_xml(name, length, patterns, playing))
+            handle.write(preset_xml(name, length, patterns, playing, note_value))
         print("wrote", file_name)
 
 

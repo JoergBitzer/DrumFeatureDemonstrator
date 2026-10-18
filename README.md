@@ -59,13 +59,15 @@ starts or jumps into the run-up) the sound is not played and a notice tells why.
   top (the orange line is the envelope), and a **Declick** switch that snaps the lines to zero crossings.
 - **Four patterns** of 8 to 32 steps (the same length for all): switch each pattern on or off for playback (the ones that
   are on are played one after the other, 1 to 4), choose which one you edit; a yellow frame marks the pattern that plays.
-- **Step grid**: per step *on*, *mode* (forward, reverse, reverse + play to end) and one small slider under it whose
-  *page* you choose: **note** (MIDI note), **velocity** (MIDI value) or **pan**. The **base note** (C1 - C5) is where the sample sits in the scale.
+- **Step grid**: one button per step with four states (off, forward, reverse, reverse + play to end) and, below, a row of
+  vertical **bars** whose *page* you choose: **note** (MIDI note), **velocity** (MIDI value) or **pan**; **draw over the bars** with
+  the mouse and every bar you cross follows the line. The **base note** (C1 - C5) is where the sample sits in the scale.
+- **Step note value** from 1/1 to 1/64, normal, dotted or as a triplet (default 1/16).
 - **Host sync** (follows tempo and position of the DAW) or an **internal beat** with Play/Pause and the space key.
 - **MIDI keyboard** and MIDI input play the sample with pitch and velocity. While the transport stands, the
   selected step (yellow frame; cursor keys or a click select it) takes the note and velocity of what you play.
-- **Info line** with the value of the control under the mouse (no room for an edit field per slider).
-- **Presets**: all four patterns, region, fades and the sample name; six factory presets (they keep your sample).
+- **Info line** with the value of the control under the mouse (no room for an edit field per bar).
+- **Presets**: all four patterns, region, fades and the sample name; seven factory presets (they keep your sample).
   A DAW project contains the sample itself (up to 8 MB), so it works without the samples folder.
 - Day and night theme, resizable window, all controls automatable, undo and the red *Save* button work.
 
