@@ -23,7 +23,9 @@ struct BlockTransport
 struct SequencerResult
 {
     int missedPlayToEnd = 0; // sounds that should be running, but whose start is already gone (after a start or jump)
-    int currentStep = -1;    // step at the start of the block, -1 if not playing
+    bool transportRunning = false; // the transport (host or internal beat) plays
+    int currentPattern = -1; // pattern of the chain at the start of the block, -1 if nothing plays
+    int currentStep = -1;    // step in that pattern at the start of the block, -1 if nothing plays
 };
 
 class Sequencer
@@ -32,6 +34,10 @@ public:
     void reset();
 
     // soundStarts is cleared first (reserve its capacity beforehand)
+    void process(const PatternBank& bank, const SampleRegion& region, double hostSampleRate,
+                 const BlockTransport& transport, int numSamples, std::vector<SoundStart>& soundStarts,
+                 SequencerResult& result);
+    // one pattern only (as pattern 0 of a bank)
     void process(const Pattern& pattern, const SampleRegion& region, double hostSampleRate,
                  const BlockTransport& transport, int numSamples, std::vector<SoundStart>& soundStarts,
                  SequencerResult& result);

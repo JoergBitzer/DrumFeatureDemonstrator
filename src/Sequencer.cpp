@@ -7,18 +7,21 @@ namespace dfd
 namespace
 {
 constexpr double kContinuityToleranceInSamples = 1.0;
-constexpr int kNotPlayingStep = -1;
+constexpr int kNotPlaying = -1;
 
-int stepAtPosition(const Pattern& pattern, double positionPpq)
+// where in the chain of the playing patterns the position lies
+void locateInChain(const PatternBank& bank, double positionPpq, int& patternIndex, int& stepIndex)
 {
-    const int numSteps = numUsedSteps(pattern);
+    const long long chainSteps = static_cast<long long>(numPlayingPatterns(bank)) * numUsedSteps(bank);
     const long long stepCount = static_cast<long long>(std::floor(positionPpq * kStepsPerBeat));
-    long long stepInPattern = stepCount % numSteps;
-    if (stepInPattern < 0)
+    long long stepInChain = stepCount % chainSteps;
+    if (stepInChain < 0)
     {
-        stepInPattern += numSteps;
+        stepInChain += chainSteps;
     }
-    return static_cast<int>(stepInPattern);
+    const int usedSteps = numUsedSteps(bank);
+    patternIndex = playingPatternAt(bank, static_cast<int>(stepInChain / usedSteps));
+    stepIndex = static_cast<int>(stepInChain % usedSteps);
 }
 } // namespace
 
@@ -42,9 +45,18 @@ void Sequencer::process(const Pattern& pattern, const SampleRegion& region, doub
                         const BlockTransport& transport, int numSamples, std::vector<SoundStart>& soundStarts,
                         SequencerResult& result)
 {
+    process(makeBank(pattern), region, hostSampleRate, transport, numSamples, soundStarts, result);
+}
+
+void Sequencer::process(const PatternBank& bank, const SampleRegion& region, double hostSampleRate,
+                        const BlockTransport& transport, int numSamples, std::vector<SoundStart>& soundStarts,
+                        SequencerResult& result)
+{
     soundStarts.clear();
     result.missedPlayToEnd = 0;
-    result.currentStep = kNotPlayingStep;
+    result.transportRunning = false;
+    result.currentPattern = kNotPlaying;
+    result.currentStep = kNotPlaying;
     if (transport.isPlaying == false || transport.hasPosition == false)
     {
         reset();
@@ -55,6 +67,7 @@ void Sequencer::process(const Pattern& pattern, const SampleRegion& region, doub
         reset();
         return;
     }
+    result.transportRunning = true;
 
     Transport timing;
     timing.bpm = transport.bpm;
@@ -63,10 +76,13 @@ void Sequencer::process(const Pattern& pattern, const SampleRegion& region, doub
 
     if (isContinuous(transport.positionPpq, beatLength) == false)
     {
-        result.missedPlayToEnd = countMissedPlayToEnd(pattern, region, timing, transport.positionPpq);
+        result.missedPlayToEnd = countMissedPlayToEnd(bank, region, timing, transport.positionPpq);
     }
-    scheduleBlock(pattern, region, timing, transport.positionPpq, numSamples, soundStarts);
-    result.currentStep = stepAtPosition(pattern, transport.positionPpq);
+    scheduleBlock(bank, region, timing, transport.positionPpq, numSamples, soundStarts);
+    if (numPlayingPatterns(bank) > 0)
+    {
+        locateInChain(bank, transport.positionPpq, result.currentPattern, result.currentStep);
+    }
 
     m_hasExpectedPosition = true;
     m_expectedPositionPpq = transport.positionPpq + numSamples / beatLength;

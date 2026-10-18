@@ -196,6 +196,7 @@ if(DFD_BUILD_UNIT_TESTS)
         tests/StepSchedulerTests.cpp
         tests/SampleEngineTests.cpp
         tests/SequencerTests.cpp
+        tests/PatternChainTests.cpp
         tests/SampleStoreTests.cpp
         src/StepScheduler.cpp
         src/Sequencer.cpp

@@ -202,15 +202,15 @@ void StepButton::paintButton(juce::Graphics& g, bool shouldDrawButtonAsHighlight
 // ---------------------------------------------------------------------------------------------- StepColumn
 StepColumn::StepColumn(int stepIndex, juce::AudioProcessorValueTreeState& apvts)
     : m_stepIndex(stepIndex),
-      m_modeButton(*apvts.getParameter(stepParameterId(stepIndex, StepParam::Mode))),
-      m_stepAttachment(apvts, stepParameterId(stepIndex, StepParam::Active), m_stepButton),
-      m_noteAttachment(apvts, stepParameterId(stepIndex, StepParam::Note), m_noteSlider),
-      m_velocityAttachment(apvts, stepParameterId(stepIndex, StepParam::Velocity), m_velocitySlider)
+      m_modeButton(*apvts.getParameter(stepParameterId(0, stepIndex, StepParam::Mode))),
+      m_stepAttachment(apvts, stepParameterId(0, stepIndex, StepParam::Active), m_stepButton),
+      m_noteAttachment(apvts, stepParameterId(0, stepIndex, StepParam::Note), m_noteSlider),
+      m_velocityAttachment(apvts, stepParameterId(0, stepIndex, StepParam::Velocity), m_velocitySlider)
 {
     m_stepButton.setClickingTogglesState(true);
     m_stepButton.setBeatAccent((stepIndex % kBeatLength) == 0);
     m_stepButton.onClick = [this]() { updateModeButton(); };
-    m_stepButton.setTooltip(stepParameterSpec(stepIndex, StepParam::Active).help);
+    m_stepButton.setTooltip(stepParameterSpec(0, stepIndex, StepParam::Active).help);
     addAndMakeVisible(m_stepButton);
     addAndMakeVisible(m_modeButton);
 
@@ -220,8 +220,8 @@ StepColumn::StepColumn(int stepIndex, juce::AudioProcessorValueTreeState& apvts)
         slider->setTextBoxStyle(juce::Slider::NoTextBox, false, 0, 0);
         addAndMakeVisible(slider);
     }
-    m_noteSlider.setTooltip(stepParameterSpec(stepIndex, StepParam::Note).help);
-    m_velocitySlider.setTooltip(stepParameterSpec(stepIndex, StepParam::Velocity).help);
+    m_noteSlider.setTooltip(stepParameterSpec(0, stepIndex, StepParam::Note).help);
+    m_velocitySlider.setTooltip(stepParameterSpec(0, stepIndex, StepParam::Velocity).help);
     updateModeButton();
 
     // mouse events of all children come here: a click selects the step, hovering and changing show the value in the info line

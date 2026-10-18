@@ -40,16 +40,21 @@ const char* suffixOf(StepParam param)
 }
 } // namespace
 
-std::string stepParameterId(int stepIndex, StepParam param)
+std::string stepParameterId(int patternIndex, int stepIndex, StepParam param)
 {
-    return "Step" + stepNumberText(stepIndex) + suffixOf(param);
+    std::string prefix;
+    if (patternIndex > 0)
+    {
+        prefix = "P" + std::to_string(patternIndex + 1);
+    }
+    return prefix + "Step" + stepNumberText(stepIndex) + suffixOf(param);
 }
 
-ParameterSpec stepParameterSpec(int stepIndex, StepParam param)
+ParameterSpec stepParameterSpec(int patternIndex, int stepIndex, StepParam param)
 {
-    const std::string stepName = "Step " + stepNumberText(stepIndex);
+    const std::string stepName = "Pattern " + std::to_string(patternIndex + 1) + " step " + stepNumberText(stepIndex);
     ParameterSpec spec;
-    spec.ID = stepParameterId(stepIndex, param);
+    spec.ID = stepParameterId(patternIndex, stepIndex, param);
     switch (param)
     {
     case StepParam::Active:
@@ -91,6 +96,44 @@ ParameterSpec stepParameterSpec(int stepIndex, StepParam param)
         spec.help = "Pan of this step: -1 = left, 0 = centre, 1 = right (balance: the centre keeps the full level of both channels).";
         break;
     }
+    return spec;
+}
+
+std::string playPatternParameterId(int patternIndex)
+{
+    return "PlayPattern" + std::to_string(patternIndex + 1);
+}
+
+ParameterSpec playPatternParameterSpec(int patternIndex)
+{
+    ParameterSpec spec;
+    spec.ID = playPatternParameterId(patternIndex);
+    spec.name = "Play pattern " + std::to_string(patternIndex + 1);
+    spec.minValue = 0.0f;
+    spec.maxValue = 1.0f;
+    spec.defaultValue = 0.0f;
+    if (patternIndex == 0)
+    {
+        spec.defaultValue = 1.0f;
+    }
+    spec.help = "Plays this pattern (1) or not (0). The patterns that are on are played one after the other, from 1 to 4.";
+    return spec;
+}
+
+std::string editPatternParameterId()
+{
+    return "EditPattern";
+}
+
+ParameterSpec editPatternParameterSpec()
+{
+    ParameterSpec spec;
+    spec.ID = editPatternParameterId();
+    spec.name = "Edit pattern";
+    spec.minValue = 1.0f;
+    spec.maxValue = static_cast<float>(kNumPatternsInParameters);
+    spec.defaultValue = 1.0f;
+    spec.help = "The pattern that the step grid shows and edits (1 - 4).";
     return spec;
 }
 } // namespace dfd
