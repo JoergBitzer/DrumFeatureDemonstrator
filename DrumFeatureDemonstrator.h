@@ -13,6 +13,7 @@
 #include "src/platform/XdndTarget.h"
 #include "gui/WaveformView.h"
 #include "gui/StepGrid.h"
+#include "gui/PatternSelector.h"
 #include "tools/ParameterSpec.h"
 #include "PluginSettings.h"
 const struct
@@ -268,6 +269,8 @@ private:
     void setParameterWithGesture(const juce::String& parameterId, float value);
     void showInfo(const juce::String& text);
     int currentPatternLength() const;
+    int currentEditPattern() const;
+    bool anyPlayingPatternHasInvalidSteps() const;
     void timerCallback() override;
     static bool isSampleFileExtension(const juce::File& file);
     void chooseSampleFile();
@@ -295,6 +298,11 @@ private:
     juce::Label m_infoLabel;
     dfd::WaveformView m_waveform;
     dfd::StepGrid m_stepGrid;
+    dfd::PatternSelector m_patternSelector;
+    juce::Label m_pageLabel;
+    juce::TextButton m_pageNoteButton;
+    juce::TextButton m_pageVelocityButton;
+    juce::TextButton m_pagePanButton;
     std::unique_ptr<juce::FileChooser> m_fileChooser;
 
     juce::AudioProcessorValueTreeState::ButtonAttachment m_declickAttachment;

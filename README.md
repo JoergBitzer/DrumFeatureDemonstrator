@@ -10,7 +10,7 @@ Developed at the [Jade Hochschule](https://www.kvraudio.com/developer/jade-hochs
 engineers. Free, open source, no commercial interest. **Vibe-coded with an AI** -- see
 [How it was made](#how-it-was-made).
 
-| Night theme: "Reverse into the beat" with fades | Day theme: "Offbeat riff" |
+| Night theme: "Two patterns" (pattern 2 edited, pattern 1 playing) | Day theme: "Four patterns", pan page |
 |---|---|
 | ![DrumFeatureDemonstrator, night theme](docs/img/drumfeature_night.png) | ![DrumFeatureDemonstrator, day theme](docs/img/drumfeature_day.png) |
 
@@ -57,13 +57,15 @@ starts or jumps into the run-up) the sound is not played and a notice tells why.
   window, see below) or from a project/preset. Plain resampling: pitch and duration change together.
 - **Waveform** with start and end line (times shown in seconds), a **fade-in and fade-out** handle at the
   top (the orange line is the envelope), and a **Declick** switch that snaps the lines to zero crossings.
-- **Step grid** of 8 to 32 steps: per step *on*, *mode* (forward, reverse, reverse + play to end), a **note**
-  knob and a **velocity** knob (MIDI values). The **base note** (C1 - C5) is where the sample sits in the scale.
+- **Four patterns** of 8 to 32 steps (the same length for all): switch each pattern on or off for playback (the ones that
+  are on are played one after the other, 1 to 4), choose which one you edit; a yellow frame marks the pattern that plays.
+- **Step grid**: per step *on*, *mode* (forward, reverse, reverse + play to end) and one small slider under it whose
+  *page* you choose: **note** (MIDI note), **velocity** (MIDI value) or **pan**. The **base note** (C1 - C5) is where the sample sits in the scale.
 - **Host sync** (follows tempo and position of the DAW) or an **internal beat** with Play/Pause and the space key.
 - **MIDI keyboard** and MIDI input play the sample with pitch and velocity. While the transport stands, the
   selected step (yellow frame; cursor keys or a click select it) takes the note and velocity of what you play.
-- **Info line** with the value of the control under the mouse (no room for an edit field per knob).
-- **Presets**: pattern, region, fades and the sample name; four factory presets (they keep your sample).
+- **Info line** with the value of the control under the mouse (no room for an edit field per slider).
+- **Presets**: all four patterns, region, fades and the sample name; six factory presets (they keep your sample).
   A DAW project contains the sample itself (up to 8 MB), so it works without the samples folder.
 - Day and night theme, resizable window, all controls automatable, undo and the red *Save* button work.
 
@@ -142,9 +144,9 @@ the zips are attached to the workflow run.
 |---|---|
 | [planning.md](planning.md), [DEVELOPMENT_LOG.md](DEVELOPMENT_LOG.md) | plan, decisions, progress; log of the development with results and findings |
 | [docs/design/W2-play-to-end.md](docs/design/W2-play-to-end.md) | the play-to-end algorithm |
-| `src/` | the algorithm without GUI code: `StepScheduler` (pure scheduling incl. play to end), `Sequencer` (transport, internal clock), `VoiceBank` / `SampleVoice` (resampling playback, fades), `SampleHolder` (lock-free hand-over), `SampleStore` (samples folder, project state), `StepParameters`, `NoteNames` |
+| `src/` | the algorithm without GUI code: `StepScheduler` (pure scheduling incl. play to end and the chain of four patterns), `Sequencer` (transport, internal clock), `VoiceBank` / `SampleVoice` (resampling playback, fades), `SampleHolder` (lock-free hand-over), `SampleStore` (samples folder, project state), `StepParameters`, `NoteNames` |
 | `src/platform/` | `XdndTarget`: file drops into a host window on Linux (plain Xlib) |
-| `gui/` | `WaveformView`, `StepGrid` |
+| `gui/` | `WaveformView`, `StepGrid`, `PatternSelector` |
 | `DrumFeatureDemonstrator.*`, `Plugin*.*` | parameters, audio glue, main GUI, editor (from the template) |
 | `tests/` | unit tests (`juce::UnitTest`, CTest); `tests/manual/` small tools to test drag and drop by hand |
 | `tools/` | template helpers (preset handler, day/night look, pluginval scripts), the `Tester`, `fetch_samples.sh`, `make_factory_presets.py` |

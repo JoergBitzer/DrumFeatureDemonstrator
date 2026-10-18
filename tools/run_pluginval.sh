@@ -61,13 +61,34 @@ echo "pluginval: $("$pluginval" --version 2>/dev/null | head -1)"
 echo "plugin:    $plugin"
 
 # --- test runs ---
+# line-buffered output, so that the log is complete up to the last line even if pluginval crashes
+line_buffered=""
+if command -v stdbuf > /dev/null; then
+    line_buffered="stdbuf -oL -eL"
+fi
 logdir=$(mktemp -d)
 failed=0
 for i in $(seq 1 "$runs"); do
     home=$(mktemp -d)
     log=$logdir/run_$i.log
-    HOME=$home "$pluginval" --strictness-level 10 ${PLUGINVAL_EXTRA_ARGS:-} --validate "$plugin" > "$log" 2>&1
-    rc=$?
+    # Known problem of pluginval 1.0.4 on Linux with this plugin (see DEVELOPMENT_LOG.md, "pluginval finding"): in about one run of
+    # ten the program crashes with SIGSEGV (exit code 139) inside its own VST3 run loop (found with gdb: in pluginval, not in the plugin),
+    # in the last test (Fuzz parameters) or while it shuts down after it. A run that crashes this way is repeated, at most twice;
+    # three crashes in a row (probability about 0.2 %) count as a failure. Any other failure counts at once.
+    attempt=1
+    while true; do
+        HOME=$home $line_buffered "$pluginval" --strictness-level 10 ${PLUGINVAL_EXTRA_ARGS:-} --validate "$plugin" > "$log" 2>&1
+        rc=$?
+        if [ $rc -eq 139 ] && grep -q "Completed tests in pluginval / Fuzz parameters" "$log"; then
+            echo "run $i/$runs: WARNING: pluginval crashed at its exit after the last test had completed (host-side, known); counted as passed"
+            rc=0
+        fi
+        if [ $rc -ne 139 ] || [ $attempt -ge 3 ]; then
+            break
+        fi
+        echo "run $i/$runs: attempt $attempt crashed (SIGSEGV in pluginval, known); trying again"
+        attempt=$((attempt + 1))
+    done
     rm -rf "$home"
     assertions=$(grep -c "JUCE Assertion" "$log")
     if [ $rc -eq 0 ] && [ "$assertions" -eq 0 ]; then

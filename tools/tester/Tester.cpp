@@ -24,6 +24,8 @@
                             given in seconds (default 0); repeatable
       --save-state <file>   write the plugin state (as a DAW saves it) to a file, after everything else was set
       --load-state <file>   restore such a state first (before --preset, --set, --sample)
+      --click <x,y>         snapshot: a mouse click (position as fractions of the window size, e.g. 0.5,0.9); repeatable, in the
+                            order given, after --keys (synthetic events for the window of the Tester, nothing of the desktop)
       --keys <list>         snapshot: send keys to the window after the notes: left,right,up,down,home,end,space (comma separated); afterwards 0.5 s are played
       --drop <file>         snapshot: simulate dropping this file onto the window (at the given --drop-at position) before the snapshot
       --drop-at <x,y>       position of the simulated drop as fractions of the window size (default 0.5,0.3)
@@ -230,6 +232,7 @@ int main(int argc, char* argv[])
 
     // options
     juce::String presetPath, audioPath, saveStatePath, loadStatePath, dropPath, dropAt = "0.5,0.3", keyNames;
+    juce::StringArray clickArgs;
     juce::StringArray samplePaths;
     juce::StringArray noteArgs;
     double seconds = 1.0;
@@ -248,6 +251,7 @@ int main(int argc, char* argv[])
         else if (a == "--blocksize" && hasValue) blockSize = juce::jmax(16, args[++i].getIntValue());
         else if (a == "--save-state" && hasValue) saveStatePath = args[++i];
         else if (a == "--load-state" && hasValue) loadStatePath = args[++i];
+        else if (a == "--click" && hasValue)     clickArgs.add(args[++i]);
         else if (a == "--keys" && hasValue)      keyNames = args[++i];
         else if (a == "--drop" && hasValue)      dropPath = args[++i];
         else if (a == "--drop-at" && hasValue)   dropAt = args[++i];
@@ -384,6 +388,26 @@ int main(int argc, char* argv[])
             peer->handleKeyPress(juce::KeyPress(keyCode));
         }
         process(*processor, audio, (int) (0.5 * sampleRate), blockSize, nullptr, true, {});
+    }
+    for (const auto& clickArg : clickArgs)
+    {
+        auto* peer = editor->getPeer();
+        const auto fractions = juce::StringArray::fromTokens(clickArg, ",", "");
+        if (peer == nullptr || fractions.size() < 2)
+        {
+            std::cout << "Cannot send the click " << clickArg << "\n";
+            return 1;
+        }
+        const juce::Point<float> position((float) (fractions[0].getDoubleValue() * editor->getWidth()),
+                                          (float) (fractions[1].getDoubleValue() * editor->getHeight()));
+        const auto source = juce::Desktop::getInstance().getMainMouseSource();
+        const juce::int64 now = juce::Time::currentTimeMillis();
+        const auto noPressure = juce::MouseInputSource::defaultPressure;
+        const auto noOrientation = juce::MouseInputSource::defaultOrientation;
+        peer->handleMouseEvent(source.getType(), position, juce::ModifierKeys(), noPressure, noOrientation, now);
+        peer->handleMouseEvent(source.getType(), position, juce::ModifierKeys::leftButtonModifier, noPressure, noOrientation, now);
+        peer->handleMouseEvent(source.getType(), position, juce::ModifierKeys(), noPressure, noOrientation, now);
+        process(*processor, audio, (int) (0.1 * sampleRate), blockSize, nullptr, true, {});
     }
     if (dropPath.isNotEmpty())
     {
