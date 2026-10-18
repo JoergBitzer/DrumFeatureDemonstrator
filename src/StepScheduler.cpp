@@ -19,7 +19,7 @@ int numUsedSteps(const Pattern& pattern)
 
 namespace
 {
-constexpr int kPassesBefore = 1; // look-ahead: a sound starts at most one pattern pass before its step
+constexpr int kPassesBefore = 1; // look-ahead: a sound starts at most one pass of the chain before its step
 constexpr int kPassesAfter = 1;
 constexpr double kStepLengthInBeats = 1.0 / kStepsPerBeat;
 
@@ -49,16 +49,21 @@ bool isRegionValid(const SampleRegion& region)
     return true;
 }
 
-double patternLengthInBeats(const Pattern& pattern)
+// the whole chain (all playing patterns one after the other) in steps and in beats
+int chainLengthInSteps(const PatternBank& bank)
 {
-    return numUsedSteps(pattern) * kStepLengthInBeats;
+    return numPlayingPatterns(bank) * numUsedSteps(bank);
 }
 
-// start of a sound in beats (ppq), for the step with the given index in the given pass
-double startInBeats(const Pattern& pattern, const StepSettings& step, int stepIndex, int pass,
-                    double durationInBeats)
+double chainLengthInBeats(const PatternBank& bank)
 {
-    const double stepStart = (pass * numUsedSteps(pattern) + stepIndex) * kStepLengthInBeats;
+    return chainLengthInSteps(bank) * kStepLengthInBeats;
+}
+
+// start of a sound in beats (ppq): globalStepIndex counts the steps of the whole chain from the position 0 on
+double startInBeats(const StepSettings& step, long long globalStepIndex, double durationInBeats)
+{
+    const double stepStart = static_cast<double>(globalStepIndex) * kStepLengthInBeats;
     if (step.mode == StepMode::ReverseToEnd)
     {
         const double anchor = stepStart + kStepLengthInBeats;
@@ -67,8 +72,7 @@ double startInBeats(const Pattern& pattern, const StepSettings& step, int stepIn
     return stepStart;
 }
 
-bool isStepScheduled(const Pattern& pattern, const StepSettings& step, const SampleRegion& region,
-                     const Transport& transport)
+bool isStepScheduled(const PatternBank& bank, const StepSettings& step, const SampleRegion& region, const Transport& transport)
 {
     if (step.active == false)
     {
@@ -76,29 +80,97 @@ bool isStepScheduled(const Pattern& pattern, const StepSettings& step, const Sam
     }
     if (step.mode == StepMode::ReverseToEnd)
     {
-        return isPlayToEndAllowed(pattern, step, region, transport);
+        return isPlayToEndAllowed(bank, step, region, transport);
     }
     return true;
 }
 
-double durationInBeats(const Pattern& pattern, const StepSettings& step, const SampleRegion& region, const Transport& transport)
+double durationInBeats(const PatternBank& bank, const StepSettings& step, const SampleRegion& region, const Transport& transport)
 {
-    const double ratio = playbackRatio(stepSemitones(pattern, step), region.fileSampleRate, transport.hostSampleRate);
+    const double ratio = playbackRatio(stepSemitones(bank, step), region.fileSampleRate, transport.hostSampleRate);
     return durationInHostSamples(region, ratio) / samplesPerBeat(transport);
 }
 
-int firstPass(const Pattern& pattern, double positionPpq)
+int firstPass(const PatternBank& bank, double positionPpq)
 {
-    const double passIndex = std::floor(positionPpq / patternLengthInBeats(pattern));
+    const double passIndex = std::floor(positionPpq / chainLengthInBeats(bank));
     return static_cast<int>(passIndex) - kPassesBefore;
 }
 
-int lastPass(const Pattern& pattern, double positionPpq)
+int lastPass(const PatternBank& bank, double positionPpq)
 {
-    const double passIndex = std::floor(positionPpq / patternLengthInBeats(pattern));
+    const double passIndex = std::floor(positionPpq / chainLengthInBeats(bank));
     return static_cast<int>(passIndex) + kPassesAfter;
 }
+
+long long globalStepIndexOf(const PatternBank& bank, int pass, int chainSlot, int stepIndex)
+{
+    const long long chainSteps = chainLengthInSteps(bank);
+    return static_cast<long long>(pass) * chainSteps + static_cast<long long>(chainSlot) * numUsedSteps(bank) + stepIndex;
+}
 } // namespace
+
+PatternBank makeBank(const Pattern& pattern)
+{
+    PatternBank bank;
+    bank.numSteps = pattern.numSteps;
+    bank.baseNote = pattern.baseNote;
+    bank.steps[0] = pattern.steps;
+    return bank;
+}
+
+int numUsedSteps(const PatternBank& bank)
+{
+    if (bank.numSteps < kMinSteps)
+    {
+        return kMinSteps;
+    }
+    if (bank.numSteps > kMaxSteps)
+    {
+        return kMaxSteps;
+    }
+    return bank.numSteps;
+}
+
+StepSettings& stepAt(PatternBank& bank, int patternIndex, int stepIndex)
+{
+    return bank.steps[static_cast<std::size_t>(patternIndex)][static_cast<std::size_t>(stepIndex)];
+}
+
+const StepSettings& stepAt(const PatternBank& bank, int patternIndex, int stepIndex)
+{
+    return bank.steps[static_cast<std::size_t>(patternIndex)][static_cast<std::size_t>(stepIndex)];
+}
+
+int numPlayingPatterns(const PatternBank& bank)
+{
+    int count = 0;
+    for (bool isPlaying : bank.playing)
+    {
+        if (isPlaying)
+        {
+            ++count;
+        }
+    }
+    return count;
+}
+
+int playingPatternAt(const PatternBank& bank, int chainSlot)
+{
+    int slot = 0;
+    for (int patternIndex = 0; patternIndex < kNumPatterns; ++patternIndex)
+    {
+        if (bank.playing[static_cast<std::size_t>(patternIndex)])
+        {
+            if (slot == chainSlot)
+            {
+                return patternIndex;
+            }
+            ++slot;
+        }
+    }
+    return -1;
+}
 
 StepSettings& stepAt(Pattern& pattern, int stepIndex)
 {
@@ -113,6 +185,11 @@ const StepSettings& stepAt(const Pattern& pattern, int stepIndex)
 double stepSemitones(const Pattern& pattern, const StepSettings& step)
 {
     return step.noteNumber - pattern.baseNote;
+}
+
+double stepSemitones(const PatternBank& bank, const StepSettings& step)
+{
+    return step.noteNumber - bank.baseNote;
 }
 
 double playbackRatio(double pitchSemitones, double fileSampleRate, double hostSampleRate)
@@ -139,6 +216,12 @@ double samplesPerStep(const Transport& transport)
 bool isPlayToEndAllowed(const Pattern& pattern, const StepSettings& step, const SampleRegion& region,
                         const Transport& transport)
 {
+    return isPlayToEndAllowed(makeBank(pattern), step, region, transport);
+}
+
+bool isPlayToEndAllowed(const PatternBank& bank, const StepSettings& step, const SampleRegion& region,
+                        const Transport& transport)
+{
     if (isRegionValid(region) == false)
     {
         return false;
@@ -147,13 +230,19 @@ bool isPlayToEndAllowed(const Pattern& pattern, const StepSettings& step, const 
     {
         return false;
     }
-    const double ratio = playbackRatio(stepSemitones(pattern, step), region.fileSampleRate, transport.hostSampleRate);
+    const double ratio = playbackRatio(stepSemitones(bank, step), region.fileSampleRate, transport.hostSampleRate);
     const double duration = durationInHostSamples(region, ratio);
-    const double patternLength = numUsedSteps(pattern) * samplesPerStep(transport);
+    const double patternLength = numUsedSteps(bank) * samplesPerStep(transport);
     return duration <= patternLength;
 }
 
 void scheduleBlock(const Pattern& pattern, const SampleRegion& region, const Transport& transport,
+                   double blockStartPpq, int numSamples, std::vector<SoundStart>& soundStarts)
+{
+    scheduleBlock(makeBank(pattern), region, transport, blockStartPpq, numSamples, soundStarts);
+}
+
+void scheduleBlock(const PatternBank& bank, const SampleRegion& region, const Transport& transport,
                    double blockStartPpq, int numSamples, std::vector<SoundStart>& soundStarts)
 {
     soundStarts.clear();
@@ -169,50 +258,66 @@ void scheduleBlock(const Pattern& pattern, const SampleRegion& region, const Tra
     {
         return;
     }
+    const int chainCount = numPlayingPatterns(bank);
+    if (chainCount == 0)
+    {
+        return;
+    }
 
     const double beatLength = samplesPerBeat(transport);
     const double blockEndPpq = blockStartPpq + numSamples / beatLength;
-    const int usedSteps = numUsedSteps(pattern);
+    const int usedSteps = numUsedSteps(bank);
 
-    for (int pass = firstPass(pattern, blockStartPpq); pass <= lastPass(pattern, blockEndPpq); ++pass)
+    for (int pass = firstPass(bank, blockStartPpq); pass <= lastPass(bank, blockEndPpq); ++pass)
     {
-        for (int stepIndex = 0; stepIndex < usedSteps; ++stepIndex)
+        for (int chainSlot = 0; chainSlot < chainCount; ++chainSlot)
         {
-            const StepSettings& step = stepAt(pattern, stepIndex);
-            if (isStepScheduled(pattern, step, region, transport) == false)
+            const int patternIndex = playingPatternAt(bank, chainSlot);
+            for (int stepIndex = 0; stepIndex < usedSteps; ++stepIndex)
             {
-                continue;
-            }
-            const double duration = durationInBeats(pattern, step, region, transport);
-            const double start = startInBeats(pattern, step, stepIndex, pass, duration);
-            const double offsetInSamples = std::round((start - blockStartPpq) * beatLength);
-            if (offsetInSamples < 0.0)
-            {
-                continue;
-            }
-            if (offsetInSamples >= numSamples)
-            {
-                continue;
-            }
+                const StepSettings& step = stepAt(bank, patternIndex, stepIndex);
+                if (isStepScheduled(bank, step, region, transport) == false)
+                {
+                    continue;
+                }
+                const double duration = durationInBeats(bank, step, region, transport);
+                const double start = startInBeats(step, globalStepIndexOf(bank, pass, chainSlot, stepIndex), duration);
+                const double offsetInSamples = std::round((start - blockStartPpq) * beatLength);
+                if (offsetInSamples < 0.0)
+                {
+                    continue;
+                }
+                if (offsetInSamples >= numSamples)
+                {
+                    continue;
+                }
 
-            if (static_cast<int>(soundStarts.size()) >= kMaxSoundStartsPerBlock)
-            {
-                return;
+                if (static_cast<int>(soundStarts.size()) >= kMaxSoundStartsPerBlock)
+                {
+                    return;
+                }
+                SoundStart soundStart;
+                soundStart.patternIndex = patternIndex;
+                soundStart.stepIndex = stepIndex;
+                soundStart.sampleOffsetInBlock = static_cast<int>(offsetInSamples);
+                soundStart.playbackRatio = playbackRatio(stepSemitones(bank, step), region.fileSampleRate, transport.hostSampleRate);
+                soundStart.reverse = (step.mode != StepMode::Forward);
+                soundStart.playsToEnd = (step.mode == StepMode::ReverseToEnd);
+                soundStart.gain = step.velocity / kMaxMidiVelocity;
+                soundStart.pan = step.pan;
+                soundStarts.push_back(soundStart);
             }
-            SoundStart soundStart;
-            soundStart.stepIndex = stepIndex;
-            soundStart.sampleOffsetInBlock = static_cast<int>(offsetInSamples);
-            soundStart.playbackRatio = playbackRatio(stepSemitones(pattern, step), region.fileSampleRate, transport.hostSampleRate);
-            soundStart.reverse = (step.mode != StepMode::Forward);
-            soundStart.playsToEnd = (step.mode == StepMode::ReverseToEnd);
-            soundStart.gain = step.velocity / kMaxMidiVelocity;
-            soundStart.pan = step.pan;
-            soundStarts.push_back(soundStart);
         }
     }
 }
 
 int countMissedPlayToEnd(const Pattern& pattern, const SampleRegion& region, const Transport& transport,
+                         double positionPpq)
+{
+    return countMissedPlayToEnd(makeBank(pattern), region, transport, positionPpq);
+}
+
+int countMissedPlayToEnd(const PatternBank& bank, const SampleRegion& region, const Transport& transport,
                          double positionPpq)
 {
     if (isRegionValid(region) == false)
@@ -223,28 +328,37 @@ int countMissedPlayToEnd(const Pattern& pattern, const SampleRegion& region, con
     {
         return 0;
     }
+    const int chainCount = numPlayingPatterns(bank);
+    if (chainCount == 0)
+    {
+        return 0;
+    }
 
     int missedSounds = 0;
-    const int usedSteps = numUsedSteps(pattern);
-    for (int pass = firstPass(pattern, positionPpq); pass <= lastPass(pattern, positionPpq); ++pass)
+    const int usedSteps = numUsedSteps(bank);
+    for (int pass = firstPass(bank, positionPpq); pass <= lastPass(bank, positionPpq); ++pass)
     {
-        for (int stepIndex = 0; stepIndex < usedSteps; ++stepIndex)
+        for (int chainSlot = 0; chainSlot < chainCount; ++chainSlot)
         {
-            const StepSettings& step = stepAt(pattern, stepIndex);
-            if (step.mode != StepMode::ReverseToEnd)
+            const int patternIndex = playingPatternAt(bank, chainSlot);
+            for (int stepIndex = 0; stepIndex < usedSteps; ++stepIndex)
             {
-                continue;
-            }
-            if (isStepScheduled(pattern, step, region, transport) == false)
-            {
-                continue;
-            }
-            const double duration = durationInBeats(pattern, step, region, transport);
-            const double start = startInBeats(pattern, step, stepIndex, pass, duration);
-            const double anchor = start + duration;
-            if (start < positionPpq && positionPpq < anchor)
-            {
-                ++missedSounds;
+                const StepSettings& step = stepAt(bank, patternIndex, stepIndex);
+                if (step.mode != StepMode::ReverseToEnd)
+                {
+                    continue;
+                }
+                if (isStepScheduled(bank, step, region, transport) == false)
+                {
+                    continue;
+                }
+                const double duration = durationInBeats(bank, step, region, transport);
+                const double start = startInBeats(step, globalStepIndexOf(bank, pass, chainSlot, stepIndex), duration);
+                const double anchor = start + duration;
+                if (start < positionPpq && positionPpq < anchor)
+                {
+                    ++missedSounds;
+                }
             }
         }
     }

@@ -189,9 +189,11 @@ public:
     void setSample(std::shared_ptr<const dfd::SampleData> sample);
 
     // state for the GUI (written by the audio thread, read by the GUI timer)
-    int getCurrentStep() const { return m_currentStep.load(); }
+    int getCurrentStep() const { return m_currentStep.load(); }     // step in the playing pattern, -1 if nothing plays
+    int getCurrentPattern() const { return m_currentPattern.load(); } // the pattern of the chain that plays, -1 if none
+    bool isTransportRunning() const { return m_transportRunning.load(); }
     int getSkippedSoundCount() const { return m_skippedSoundCount.load(); } // counts up with every skipped sound
-    juce::uint32 getInvalidStepMask() const { return m_invalidStepMask.load(); } // bit n: step n cannot play to end
+    juce::uint32 getInvalidStepMask(int patternIndex) const { return m_invalidStepMasks[static_cast<std::size_t>(patternIndex)].load(); } // bit n: step n cannot play to end
     float getDisplayedBpm() const { return m_displayedBpm.load(); }
     bool isHostPositionAvailable() const { return m_hostPositionAvailable.load(); }
     // MIDI notes that arrived while the transport stood (step entry): the GUI applies them to the selected step
@@ -199,11 +201,11 @@ public:
     std::shared_ptr<const dfd::SampleData> getSampleForGui() const { return m_sampleHolder.getCurrentSampleForGui(); }
 
 private:
-    void readPattern(dfd::Pattern& pattern) const;
+    void readBank(dfd::PatternBank& bank) const;
     dfd::BlockTransport getBlockTransport(int numSamples, bool syncToHost);
     void addSequencerEvents(const dfd::SampleData& sample, int regionStart, int regionEnd);
-    void updateInvalidSteps(const dfd::Pattern& pattern, const dfd::SampleRegion& region, double bpm);
-    float stepValue(int stepIndex, dfd::StepParam param) const;
+    void updateInvalidSteps(const dfd::PatternBank& bank, const dfd::SampleRegion& region, double bpm);
+    float stepValue(int patternIndex, int stepIndex, dfd::StepParam param) const;
     void collectStepEntries(const juce::MidiBuffer& midiMessages);
     void addNoteEvents(const juce::MidiBuffer& midiMessages, const dfd::SampleData& sample, int regionStart, int regionEnd);
 
@@ -221,7 +223,9 @@ private:
     std::atomic<float>* m_syncToHost = nullptr;
     std::atomic<float>* m_internalBpm = nullptr;
     std::atomic<float>* m_internalPlay = nullptr;
-    std::array<std::atomic<float>*, dfd::kMaxSteps * dfd::kNumParamsPerStep> m_stepParameters{};
+    std::array<std::atomic<float>*, dfd::kNumPatterns * dfd::kMaxSteps * dfd::kNumParamsPerStep> m_stepParameters{};
+    std::array<std::atomic<float>*, dfd::kNumPatterns> m_playPattern{};
+    dfd::PatternBank m_bank; // the patterns of the block being processed
     static constexpr int kStepEntryCapacity = 32;
     static constexpr int kVelocityShift = 8; // an entry holds note + velocity * 256
     juce::AbstractFifo m_stepEntryFifo{kStepEntryCapacity};
@@ -232,8 +236,10 @@ private:
     dfd::InternalClock m_internalClock;
     std::vector<dfd::SoundStart> m_soundStarts;
     std::atomic<int> m_currentStep{-1};
+    std::atomic<int> m_currentPattern{-1};
+    std::atomic<bool> m_transportRunning{false};
     std::atomic<int> m_skippedSoundCount{0};
-    std::atomic<juce::uint32> m_invalidStepMask{0};
+    std::array<std::atomic<juce::uint32>, dfd::kNumPatterns> m_invalidStepMasks{};
     std::atomic<float> m_displayedBpm{0.f};
     std::atomic<bool> m_hostPositionAvailable{false};
 };
