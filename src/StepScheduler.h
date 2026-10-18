@@ -34,6 +34,7 @@ struct StepSettings
     StepMode mode = StepMode::Forward;
     double noteNumber = kDefaultBaseNote; // MIDI note: the sample sounds at its original pitch if it equals the base note
     float velocity = kMaxMidiVelocity;    // MIDI velocity 1 - 127, the gain is velocity / 127
+    float pan = 0.0f;                     // -1 left, 0 centre, 1 right
 };
 
 struct Pattern
@@ -63,6 +64,7 @@ struct SoundStart
     bool reverse = false;
     bool playsToEnd = false;
     float gain = 1.0f;
+    float pan = 0.0f;
 };
 
 // number of steps of the pattern, limited to kMinSteps..kMaxSteps

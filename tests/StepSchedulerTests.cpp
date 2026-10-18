@@ -396,6 +396,7 @@ private:
         dfd::Pattern pattern;
         setStep(pattern, 0, dfd::StepMode::Forward, 0.0);
         dfd::stepAt(pattern, 0).velocity = dfd::kMaxMidiVelocity * 0.5f;
+        dfd::stepAt(pattern, 0).pan = -0.25f;
         const dfd::SampleRegion region = makeRegion(1000.0, kRate48k);
         const dfd::Transport transport = makeTransport(kBpm120, kRate48k);
         std::vector<dfd::SoundStart> soundStarts;
@@ -405,6 +406,7 @@ private:
         if (soundStarts.size() == 1)
         {
             expectWithinAbsoluteError(soundStarts[0].gain, 0.5f, 1.0e-6f);
+            expectWithinAbsoluteError(soundStarts[0].pan, -0.25f, 1.0e-6f);
         }
 
         dfd::scheduleBlock(pattern, region, makeTransport(0.0, kRate48k), 0.0, 1000, soundStarts);

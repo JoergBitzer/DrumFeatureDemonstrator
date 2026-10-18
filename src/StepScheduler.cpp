@@ -206,6 +206,7 @@ void scheduleBlock(const Pattern& pattern, const SampleRegion& region, const Tra
             soundStart.reverse = (step.mode != StepMode::Forward);
             soundStart.playsToEnd = (step.mode == StepMode::ReverseToEnd);
             soundStart.gain = step.velocity / kMaxMidiVelocity;
+            soundStart.pan = step.pan;
             soundStarts.push_back(soundStart);
         }
     }

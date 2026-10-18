@@ -142,6 +142,7 @@ public:
         testFades();
         testStartOffsetAndGain();
         testStereoMapping();
+        testPan();
         testVoiceStealing();
         testNoAllocationWhileRendering();
         testSampleHolder();
@@ -313,6 +314,41 @@ private:
         bank.render(outputs, 2, 20);
         expectWithinAbsoluteError(left[5], 0.1f, kFloatTolerance);
         expectWithinAbsoluteError(right[5], 0.9f, kFloatTolerance);
+    }
+
+    void testPan()
+    {
+        beginTest("pan: balance law, the centre keeps the level");
+        const dfd::PanGains centre = dfd::panGains(0.0f);
+        expectWithinAbsoluteError(centre.left, 1.0f, kFloatTolerance);
+        expectWithinAbsoluteError(centre.right, 1.0f, kFloatTolerance);
+        const dfd::PanGains left = dfd::panGains(-1.0f);
+        expectWithinAbsoluteError(left.left, 1.0f, kFloatTolerance);
+        expectWithinAbsoluteError(left.right, 0.0f, kFloatTolerance);
+        const dfd::PanGains halfRight = dfd::panGains(0.5f);
+        expectWithinAbsoluteError(halfRight.left, 0.5f, kFloatTolerance);
+        expectWithinAbsoluteError(halfRight.right, 1.0f, kFloatTolerance);
+        const dfd::PanGains beyond = dfd::panGains(7.0f); // clamped
+        expectWithinAbsoluteError(beyond.left, 0.0f, kFloatTolerance);
+
+        const dfd::SampleData mono = makeMonoSample(std::vector<float>(10, 0.5f), kRate48k);
+        std::vector<float> leftOutput(20, 0.0f);
+        std::vector<float> rightOutput(20, 0.0f);
+        float* outputs[2] = {leftOutput.data(), rightOutput.data()};
+        dfd::VoiceBank bank;
+        dfd::VoiceStart voiceStart = makeStart(mono, 1.0, false);
+        voiceStart.pan = 0.5f;
+        bank.addEvent(0, voiceStart);
+        bank.render(outputs, 2, 20);
+        expectWithinAbsoluteError(leftOutput[5], 0.25f, kFloatTolerance);  // 0.5 * 0.5
+        expectWithinAbsoluteError(rightOutput[5], 0.5f, kFloatTolerance);
+
+        // a mono output ignores the pan
+        std::vector<float> monoOutput(20, 0.0f);
+        float* monoOutputs[1] = {monoOutput.data()};
+        bank.addEvent(0, voiceStart);
+        bank.render(monoOutputs, 1, 20);
+        expectWithinAbsoluteError(monoOutput[5], 0.5f, kFloatTolerance);
     }
 
     void testVoiceStealing()

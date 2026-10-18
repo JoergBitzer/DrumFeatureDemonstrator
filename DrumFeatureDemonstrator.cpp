@@ -127,6 +127,7 @@ void DrumFeatureDemonstratorAudio::readPattern(dfd::Pattern& pattern) const
         step.active = stepValue(stepIndex, dfd::StepParam::Active) > kHalf;
         step.noteNumber = static_cast<double>(stepValue(stepIndex, dfd::StepParam::Note));
         step.velocity = stepValue(stepIndex, dfd::StepParam::Velocity);
+        step.pan = stepValue(stepIndex, dfd::StepParam::Pan);
         const float mode = stepValue(stepIndex, dfd::StepParam::Mode);
         if (mode > dfd::kModeReverse + kHalf)
         {
@@ -212,6 +213,7 @@ void DrumFeatureDemonstratorAudio::addSequencerEvents(const dfd::SampleData& sam
         voiceStart.fadeInSamples = m_fadeInSamples;
         voiceStart.fadeOutSamples = m_fadeOutSamples;
         voiceStart.playbackRatio = soundStart.playbackRatio;
+        voiceStart.pan = soundStart.pan;
         voiceStart.reverse = soundStart.reverse;
         voiceStart.gain = soundStart.gain;
         m_voiceBank.addEvent(soundStart.sampleOffsetInBlock, voiceStart);
@@ -297,6 +299,7 @@ void DrumFeatureDemonstratorAudio::addParameter(std::vector<std::unique_ptr<juce
         paramVector.push_back(jade::makeParameter(dfd::stepParameterSpec(stepIndex, dfd::StepParam::Mode)));
         paramVector.push_back(jade::makeParameter(dfd::stepParameterSpec(stepIndex, dfd::StepParam::Note)));
         paramVector.push_back(jade::makeParameter(dfd::stepParameterSpec(stepIndex, dfd::StepParam::Velocity)));
+        paramVector.push_back(jade::makeParameter(dfd::stepParameterSpec(stepIndex, dfd::StepParam::Pan)));
     }
 
 }

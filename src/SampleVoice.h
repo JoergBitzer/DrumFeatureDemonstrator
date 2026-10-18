@@ -8,6 +8,14 @@
 
 namespace dfd
 {
+// balance law: the centre keeps the full level of both channels, panning to one side only turns the other channel down
+struct PanGains
+{
+    float left = 1.0f;
+    float right = 1.0f;
+};
+PanGains panGains(float pan);
+
 struct VoiceStart
 {
     const SampleData* sample = nullptr;
@@ -18,6 +26,7 @@ struct VoiceStart
     double playbackRatio = 1.0;
     bool reverse = false;
     float gain = 1.0f;
+    float pan = 0.0f; // -1 left, 0 centre, 1 right (only for outputs with two channels)
 };
 
 class SampleVoice

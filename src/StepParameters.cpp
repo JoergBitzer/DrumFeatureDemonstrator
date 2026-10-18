@@ -9,6 +9,7 @@ const char* const kActiveSuffix = "Active";
 const char* const kModeSuffix = "Mode";
 const char* const kNoteSuffix = "Note";
 const char* const kVelocitySuffix = "Velocity";
+const char* const kPanSuffix = "Pan";
 
 std::string stepNumberText(int stepIndex)
 {
@@ -32,6 +33,8 @@ const char* suffixOf(StepParam param)
         return kNoteSuffix;
     case StepParam::Velocity:
         return kVelocitySuffix;
+    case StepParam::Pan:
+        return kPanSuffix;
     }
     return kActiveSuffix;
 }
@@ -78,6 +81,14 @@ ParameterSpec stepParameterSpec(int stepIndex, StepParam param)
         spec.defaultValue = kDefaultVelocity;
         spec.numDecimalPlaces = 0;
         spec.help = "MIDI velocity of this step (1 - 127); the volume is velocity / 127.";
+        break;
+    case StepParam::Pan:
+        spec.name = stepName + " pan";
+        spec.minValue = kMinPan;
+        spec.maxValue = kMaxPan;
+        spec.defaultValue = kCentrePan;
+        spec.numDecimalPlaces = 2;
+        spec.help = "Pan of this step: -1 = left, 0 = centre, 1 = right (balance: the centre keeps the full level of both channels).";
         break;
     }
     return spec;
