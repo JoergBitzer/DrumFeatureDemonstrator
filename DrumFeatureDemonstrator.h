@@ -57,6 +57,32 @@ const struct
 	const std::string help = "Fade-out time at the end of the played region (the top handle at the end line of the waveform).";
 }g_paramFadeOut;
 
+const struct
+{
+	const std::string ID = "FadeInShape";
+	const std::string name = "Fade in shape";
+	const std::string unitName = "";
+	const float minValue = -1.f;
+	const float maxValue = 1.f;
+	const float defaultValue = 0.f;
+	const int numDecimalPlaces = 2;
+	const bool logFrequency = false;
+	const std::string help = "Curve of the fade in: 0 = linear, negative = exponential (slow start), positive = anti-exponential (fast start). The handle in the middle of the fade-in line.";
+}g_paramFadeInShape;
+
+const struct
+{
+	const std::string ID = "FadeOutShape";
+	const std::string name = "Fade out shape";
+	const std::string unitName = "";
+	const float minValue = -1.f;
+	const float maxValue = 1.f;
+	const float defaultValue = 0.f;
+	const int numDecimalPlaces = 2;
+	const bool logFrequency = false;
+	const std::string help = "Curve of the fade out: 0 = linear, negative = exponential (the sound falls fast at first), positive = anti-exponential (it stays loud longer). The handle in the middle of the fade-out line.";
+}g_paramFadeOutShape;
+
 class DrumFeatureDemonstratorAudioProcessor;
 
 // This is how we define our parameter as globals to use it in the audio processor as well as in the editor.
@@ -157,6 +183,10 @@ private:
     std::atomic<float>* m_regionEnd = nullptr;
     std::atomic<float>* m_fadeIn = nullptr;
     std::atomic<float>* m_fadeOut = nullptr;
+    std::atomic<float>* m_fadeInShape = nullptr;
+    std::atomic<float>* m_fadeOutShape = nullptr;
+    double m_fadeInExponent = 1.0;  // of the block being processed
+    double m_fadeOutExponent = 1.0;
     double m_fadeInSamples = 0.0;  // of the block being processed, in file samples
     double m_fadeOutSamples = 0.0;
     std::atomic<float>* m_internalBpm = nullptr;
@@ -204,6 +234,8 @@ private:
     void applyStepEntries();
     void refreshPatternViews();
     void showPatternSettings();
+    static juce::String versionText();
+    juce::Font versionFont() const;
     void setupPatternTools();
     void rememberForUndo();
     void patternEditedByTool(const juce::String& info);
@@ -263,5 +295,6 @@ private:
     int m_noticeTicksLeft = 0;
     std::unique_ptr<dfd::XdndDropTarget> m_dropTarget; // Linux: file drops into a host window (see src/platform/XdndTarget.h)
     juce::String m_loadMessage; // message of the last failed load, shown in the sample label
+    juce::Rectangle<int> m_versionArea; // bottom right corner: the version of the plug-in
     unsigned m_shownPatternLoadCount = 0; // the load count of the PatternData that the grid shows (a preset load changes it)
 };

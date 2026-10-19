@@ -16,6 +16,11 @@ struct PanGains
 };
 PanGains panGains(float pan);
 
+// the curve of a fade: gain = x ^ exponent, x runs linearly from 0 (silence) to 1 (full level). The shape -1 .. 1 gives the exponent
+// 2 ^ (-shape * kShapeExponentRange): 0 = linear, negative = exponential (slow start), positive = anti-exponential (fast start).
+constexpr double kShapeExponentRange = 2.0;
+double fadeExponent(double shape);
+
 struct VoiceStart
 {
     const SampleData* sample = nullptr;
@@ -23,6 +28,8 @@ struct VoiceStart
     int regionEnd = 0;   // one behind the last sample of the region
     double fadeInSamples = 0.0;  // in file samples: the gain rises from 0 to 1 over this length after regionStart
     double fadeOutSamples = 0.0; // the gain falls from 1 to 0 over this length before regionEnd (both in the sample's own time)
+    double fadeInExponent = 1.0;  // 1 = linear fade, see fadeExponent()
+    double fadeOutExponent = 1.0;
     double playbackRatio = 1.0;
     bool reverse = false;
     float gain = 1.0f;

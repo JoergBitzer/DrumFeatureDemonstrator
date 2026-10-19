@@ -55,7 +55,8 @@ starts or jumps into the run-up) the sound is not played and a notice tells why.
 ### The instrument
 - **One sample**, loaded with a button, by dropping a file onto the plugin (also in hosts that embed the
   window, see below) or from a project/preset. Plain resampling: pitch and duration change together.
-- **Waveform** with start and end line (times shown in seconds), a **fade-in and fade-out** handle at the
+- **Waveform** with start and end line (times shown in seconds), a **fade-in and fade-out** handle (with a circle in the middle of each fade
+  line that bends the curve from exponential through linear to anti-exponential) at the
   top (the orange line is the envelope), and a **Declick** switch that snaps the lines to zero crossings.
 - **Four patterns** of 8 to 32 steps (the same length for all): switch each pattern on or off for playback (the ones that
   are on are played one after the other, 1 to 4), choose which one you edit; a yellow frame marks the pattern that plays.

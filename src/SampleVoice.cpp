@@ -81,16 +81,24 @@ float SampleVoice::interpolatedValue(int channelIndex) const
     return lowerValue + fraction * (upperValue - lowerValue);
 }
 
+double fadeExponent(double shape)
+{
+    const double limitedShape = std::max(-1.0, std::min(1.0, shape));
+    return std::pow(2.0, -limitedShape * kShapeExponentRange);
+}
+
 float SampleVoice::fadeGain() const
 {
     double gain = 1.0;
     if (m_start.fadeInSamples > 0.0)
     {
-        gain = std::min(gain, (m_position - m_start.regionStart) / m_start.fadeInSamples);
+        const double progress = std::max(0.0, std::min(1.0, (m_position - m_start.regionStart) / m_start.fadeInSamples));
+        gain = std::min(gain, std::pow(progress, m_start.fadeInExponent));
     }
     if (m_start.fadeOutSamples > 0.0)
     {
-        gain = std::min(gain, (m_start.regionEnd - m_position) / m_start.fadeOutSamples);
+        const double progress = std::max(0.0, std::min(1.0, (m_start.regionEnd - m_position) / m_start.fadeOutSamples));
+        gain = std::min(gain, std::pow(progress, m_start.fadeOutExponent));
     }
     return static_cast<float>(std::max(0.0, gain));
 }

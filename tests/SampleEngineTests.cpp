@@ -239,6 +239,40 @@ private:
         expectEquals(soundLength(output), 0);
     }
 
+    void testFadeShapes(const dfd::SampleData& sample)
+    {
+        beginTest("fade shape: 0 is linear, negative is exponential (below the line), positive is anti-exponential (above it)");
+        expectWithinAbsoluteError(dfd::fadeExponent(0.0), 1.0, 1.0e-12);
+        expect(dfd::fadeExponent(-1.0) > 1.0);
+        expect(dfd::fadeExponent(1.0) < 1.0);
+        expectWithinAbsoluteError(dfd::fadeExponent(-5.0), dfd::fadeExponent(-1.0), 1.0e-12); // limited to the range
+        for (const double shape : {-1.0, 0.0, 1.0})
+        {
+            dfd::VoiceStart voiceStart = makeStart(sample, 1.0, false);
+            voiceStart.fadeInSamples = 100.0;
+            voiceStart.fadeOutSamples = 200.0;
+            voiceStart.fadeInExponent = dfd::fadeExponent(shape);
+            voiceStart.fadeOutExponent = dfd::fadeExponent(shape);
+            dfd::VoiceBank bank;
+            bank.addEvent(0, voiceStart);
+            const std::vector<float> output = renderMono(bank, 1100);
+            const float expectedFadeIn = static_cast<float>(std::pow(0.5, dfd::fadeExponent(shape)));
+            expectWithinAbsoluteError(output[50], expectedFadeIn, 1.0e-3f);  // the middle of the fade in
+            expectWithinAbsoluteError(output[900], expectedFadeIn, 1.0e-3f); // the middle of the fade out
+            expectWithinAbsoluteError(output[0], 0.0f, 1.0e-3f);             // the ends do not move
+            expectWithinAbsoluteError(output[100], 1.0f, 1.0e-3f);
+            expectWithinAbsoluteError(output[500], 1.0f, 1.0e-3f);
+            if (shape < 0.0)
+            {
+                expect(output[50] < 0.5f);
+            }
+            if (shape > 0.0)
+            {
+                expect(output[50] > 0.5f);
+            }
+        }
+    }
+
     void testFades()
     {
         beginTest("fade in and fade out of the region");
@@ -256,6 +290,8 @@ private:
         expectWithinAbsoluteError(output[800], 1.0f, 1.0e-3f); // the fade out starts 200 samples before the end
         expectWithinAbsoluteError(output[900], 0.5f, 1.0e-3f);
         expect(output[999] < 0.01f);
+
+        testFadeShapes(sample);
 
         // reverse: the envelope belongs to the sample (the waveform), so a reversed sound starts inside the fade out
         voiceStart.reverse = true;
