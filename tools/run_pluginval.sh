@@ -11,7 +11,8 @@
 #
 # PLUGINVAL_EXTRA_ARGS: extra arguments for pluginval, e.g. "--skip-gui-tests" (see the note in DEVELOPMENT_LOG.md).
 # pluginval is taken from $PLUGINVAL, from the PATH, or downloaded once into
-# ~/.cache/pluginval.
+# ~/.cache/pluginval/<version>. Use pluginval 2.x: version 1.0.4 (JUCE 8.0.3) has a bug in its VST3 run loop
+# that crashes it now and then with plugins that have many parameters (see DEVELOPMENT_LOG.md, round 9).
 #
 # Exit code 0: all runs passed. Linux/macOS; for Windows use run_pluginval.ps1.
 
@@ -38,12 +39,15 @@ fi
 plugin=$(cd "$(dirname "$plugin")" && pwd)/$(basename "$plugin") # absolute: HOME changes below
 
 # --- find or download pluginval ---
+# 2.0.0 is only published as a beta (2026-10); "releases/latest" would still give 1.0.4. Change this to the
+# final tag (e.g. v2.0.0) when it exists.
+pluginvalTag=v2.0.0-beta3
 case "$(uname -s)" in
     Linux)  zipname=pluginval_Linux.zip; binary=pluginval ;;
     Darwin) zipname=pluginval_macOS.zip; binary=pluginval.app/Contents/MacOS/pluginval ;;
     *)      echo "Unsupported system, use run_pluginval.ps1 on Windows"; exit 2 ;;
 esac
-cache=${XDG_CACHE_HOME:-$HOME/.cache}/pluginval
+cache=${XDG_CACHE_HOME:-$HOME/.cache}/pluginval/$pluginvalTag
 if [ -n "${PLUGINVAL:-}" ]; then
     pluginval=$PLUGINVAL
 elif command -v pluginval > /dev/null; then
@@ -53,7 +57,7 @@ elif [ -x "$cache/$binary" ]; then
 else
     echo "Downloading pluginval to $cache ..."
     mkdir -p "$cache"
-    curl -sSfL -o "$cache/$zipname" "https://github.com/Tracktion/pluginval/releases/latest/download/$zipname" \
+    curl -sSfL -o "$cache/$zipname" "https://github.com/Tracktion/pluginval/releases/download/$pluginvalTag/$zipname" \
         && unzip -q -o "$cache/$zipname" -d "$cache" && rm "$cache/$zipname" || { echo "Download failed"; exit 2; }
     pluginval=$cache/$binary
 fi
@@ -71,24 +75,8 @@ failed=0
 for i in $(seq 1 "$runs"); do
     home=$(mktemp -d)
     log=$logdir/run_$i.log
-    # Known problem of pluginval 1.0.4 on Linux with this plugin (see DEVELOPMENT_LOG.md, "pluginval finding"): in about one run of
-    # ten the program crashes with SIGSEGV (exit code 139) inside its own VST3 run loop (found with gdb: in pluginval, not in the plugin),
-    # in the last test (Fuzz parameters) or while it shuts down after it. A run that crashes this way is repeated, at most twice;
-    # three crashes in a row (probability about 0.2 %) count as a failure. Any other failure counts at once.
-    attempt=1
-    while true; do
-        HOME=$home $line_buffered "$pluginval" --strictness-level 10 ${PLUGINVAL_EXTRA_ARGS:-} --validate "$plugin" > "$log" 2>&1
-        rc=$?
-        if [ $rc -eq 139 ] && grep -q "Completed tests in pluginval / Fuzz parameters" "$log"; then
-            echo "run $i/$runs: WARNING: pluginval crashed at its exit after the last test had completed (host-side, known); counted as passed"
-            rc=0
-        fi
-        if [ $rc -ne 139 ] || [ $attempt -ge 3 ]; then
-            break
-        fi
-        echo "run $i/$runs: attempt $attempt crashed (SIGSEGV in pluginval, known); trying again"
-        attempt=$((attempt + 1))
-    done
+    HOME=$home $line_buffered "$pluginval" validate --strictness-level 10 ${PLUGINVAL_EXTRA_ARGS:-} "$plugin" > "$log" 2>&1
+    rc=$?
     rm -rf "$home"
     assertions=$(grep -c "JUCE Assertion" "$log")
     if [ $rc -eq 0 ] && [ "$assertions" -eq 0 ]; then

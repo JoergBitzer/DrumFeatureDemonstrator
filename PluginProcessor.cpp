@@ -100,7 +100,7 @@ void DrumFeatureDemonstratorAudioProcessor::setCurrentProgram (int index)
 const juce::String DrumFeatureDemonstratorAudioProcessor::getProgramName (int index)
 {
     juce::ignoreUnused (index);
-    return {};
+    return "Default"; // the VST3 validator of pluginval 2.x rejects a program without a name
 }
 
 void DrumFeatureDemonstratorAudioProcessor::changeProgramName (int index, const juce::String& newName)

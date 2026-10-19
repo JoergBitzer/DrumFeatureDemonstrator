@@ -227,3 +227,8 @@ Conclusions:
 Consequences / open:
 - `tools/run_pluginval.sh` should use pluginval >= 2.0.0 (JUCE 9.0.4) instead of tolerating the crash; the retry/"counted as passed" logic can then be removed (not done yet: user decides).
 - Stress plugin is outside the repository: `/home/bitzer/AudioDev/PluginvalAnalysis/StressPlugin`.
+
+### Round 9, part 2: switch to pluginval 2.x (0.12.1)
+- `tools/run_pluginval.sh/.ps1` download the pinned tag `v2.0.0-beta3` (2.0.0 is only a beta; "latest" is 1.0.4), call `pluginval validate --strictness-level 10 <plugin>` (the subcommand must come first), and no longer retry crashes. The same change was made in AdvancedAudioTemplate (AAT2 and main), pluginlab, SimplePeakEQ, stereo_widening (branches `fix/pluginval-2*`, not merged there).
+- pluginval 2.x runs the Steinberg VST3 validator (strictness >= 5): it rejected the empty program name ("Programlist 000->Program 000: has no name"). `getProgramName` now returns "Default" (0.12.1). The same empty name is in the template and its plugins.
+- Result: Debug and Release, 3 runs each, SUCCESS, zero JUCE assertions. Release build installed in `~/.vst3/`.
