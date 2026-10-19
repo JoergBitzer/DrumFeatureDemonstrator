@@ -232,3 +232,22 @@ Consequences / open:
 - `tools/run_pluginval.sh/.ps1` download the pinned tag `v2.0.0-beta3` (2.0.0 is only a beta; "latest" is 1.0.4), call `pluginval validate --strictness-level 10 <plugin>` (the subcommand must come first), and no longer retry crashes. The same change was made in AdvancedAudioTemplate (AAT2 and main), pluginlab, SimplePeakEQ, stereo_widening (branches `fix/pluginval-2*`, not merged there).
 - pluginval 2.x runs the Steinberg VST3 validator (strictness >= 5): it rejected the empty program name ("Programlist 000->Program 000: has no name"). `getProgramName` now returns "Default" (0.12.1). The same empty name is in the template and its plugins.
 - Result: Debug and Release, 3 runs each, SUCCESS, zero JUCE assertions. Release build installed in `~/.vst3/`.
+
+## Round 10: parameter redesign, step 1: the patterns are data, not parameters (0.13.0)
+
+Request: the pattern and the control values do not have to be automatable, so they need not be parameters; plain arrays saved as blobs in the presets will do; no compatibility with old presets needed.
+
+What changed:
+- `src/PatternData.*` (new, pure C++): 4 patterns x 32 steps x 5 values (on, mode, note, velocity, pan) and the 4 play switches, in lock-free atomics (GUI thread writes, audio thread reads). Saved as one blob (`toBytes` / `fromBytes`, format version 1, documented in the header: magic "DFDP", counts, play mask, little endian floats; about 2.6 kB). Invalid blobs (size, magic, version, counts) are refused; values are limited to their ranges.
+- `src/StepParameters.*` became `src/StepValues.*`: only ranges, defaults and help of the 5 values (no ids, no parameter specs).
+- The plugin state holds the blob as the property `PatternData` (base64) of the state tree, so presets (XML attribute), DAW projects and the preset handler need no new code. `commitPatternData()` writes it after every edit; a preset or DAW state load (`valueTreeRedirected`) reads it; a state without a valid blob keeps the current patterns and writes them back. `getStateInformation` stamps the blob into the copy of the state.
+- The edit pattern (which pattern the grid shows) is not saved any more; it is plain GUI state of the `PatternSelector`.
+- GUI: `StepGrid`, `StepColumn`, `StepStateButton`, `ValueStrip`, `PatternSelector` work on `PatternData` instead of parameter attachments (no gestures); the editor turns the Save button red when the `PatternData` property changes. The grid shows a loaded preset because the GUI timer compares `PatternData::getLoadCount()`.
+- Parameters: from about 660 to 11 (base note, start, end, pattern length, step note value, sync, tempo, internal play, fade in/out, declick). pluginval: Debug, 3 runs, SUCCESS.
+- Factory presets: `tools/make_factory_presets.py` writes the blob (python `struct`, same format), preset version 6; the files shrank from about 650 to 11 lines.
+
+Checks:
+- Unit tests: new `tests/PatternDataTests.cpp` (defaults, limits, fillBank, blob round trip, fixed byte layout, invalid blobs); all pass.
+- Sound: every factory preset rendered before (0.12.1) and after (0.13.0) with the Tester (internal clock, 8 s): 5 of 7 files are bit-identical; Four patterns and Triplets differ by at most 1.2e-7 (their pan values, e.g. 0.4, used to go through the normalised parameter range and are now stored as the float itself).
+- State round trip: `--preset Four_patterns.xml --save-state`, then `--load-state` renders identically to the preset render.
+- GUI (virtual display): the grid shows the preset; a click on a bar changes the note and turns the Save button red.

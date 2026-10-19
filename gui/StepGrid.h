@@ -11,7 +11,7 @@
 
 #include <juce_audio_processors/juce_audio_processors.h>
 
-#include "../src/StepParameters.h"
+#include "../src/PatternData.h"
 #include "../src/StepScheduler.h"
 
 namespace dfd
@@ -24,7 +24,7 @@ enum class GridPage
     Pan
 };
 
-// one button for the state of a step: off -> forward -> reverse -> reverse + play to end -> off (it sets the parameters "Active" and "Mode")
+// one button for the state of a step: off -> forward -> reverse -> reverse + play to end -> off (it sets the values "Active" and "Mode" of the PatternData)
 class StepStateButton : public juce::Component, public juce::SettableTooltipClient
 {
 public:
@@ -36,7 +36,8 @@ public:
 
     StepStateButton();
 
-    void bind(juce::AudioProcessorValueTreeState& apvts, int patternIndex, int stepIndex);
+    void bind(PatternData& data, int patternIndex, int stepIndex);
+    void refresh();                        // reads the values again (after a preset was loaded)
     void setCurrent(bool isCurrentStep);   // the yellow frame
     void setBeatAccent(bool isOnBeat);
     void setInvalid(bool isInvalid);       // play to end is set, but the sample is longer than the pattern
@@ -49,8 +50,9 @@ public:
     void mouseDown(const juce::MouseEvent& event) override;
 
 private:
-    std::unique_ptr<juce::ParameterAttachment> m_activeAttachment;
-    std::unique_ptr<juce::ParameterAttachment> m_modeAttachment;
+    PatternData* m_data = nullptr;
+    int m_patternIndex = 0;
+    int m_stepIndex = 0;
     float m_active = 0.0f;
     float m_mode = 0.0f;
     bool m_current = false;
@@ -62,12 +64,14 @@ private:
 class StepColumn : public juce::Component
 {
 public:
-    StepColumn(int stepIndex, juce::AudioProcessorValueTreeState& apvts);
+    StepColumn(int stepIndex, PatternData& data);
 
     std::function<void(int)> onSelected;                 // the user clicked into this column
+    std::function<void()> onEdited;                      // the user changed the state of the step
     std::function<void(const juce::String&)> onInfo;     // text for the info line
 
     void bind(int patternIndex);
+    void refresh();
     void setCurrent(bool isCurrentStep);
     void setInvalid(bool isInvalid);
     void setInsidePattern(bool isInside);
@@ -81,7 +85,7 @@ private:
 
     int m_stepIndex;
     int m_patternIndex = 0;
-    juce::AudioProcessorValueTreeState& m_apvts;
+    PatternData& m_data;
     StepStateButton m_stateButton;
 };
 
@@ -90,11 +94,13 @@ private:
 class ValueStrip : public juce::Component, public juce::SettableTooltipClient
 {
 public:
-    ValueStrip(juce::AudioProcessorValueTreeState& apvts, int firstStep, int numColumns);
+    ValueStrip(PatternData& data, int firstStep, int numColumns);
 
     std::function<void(const juce::String&)> onInfo;
+    std::function<void()> onEdited;                      // the user changed bars
 
     void bind(int patternIndex, GridPage page);
+    void refresh();                                      // reads the values again (after a preset was loaded)
     void setPatternLength(int length);
 
     void paint(juce::Graphics& g) override;
@@ -108,12 +114,12 @@ private:
     int columnAt(float x) const;
     float valueAtY(float y) const;
     void setColumnValue(int column, float value);
-    void releaseGestures();
+    void notifyEdited();
     void drawBar(juce::Graphics& g, int column) const;
     juce::String describe(int column) const;
     StepParam pageParameter() const;
 
-    juce::AudioProcessorValueTreeState& m_apvts;
+    PatternData& m_data;
     int m_firstStep;
     int m_numColumns;
     int m_patternIndex = 0;
@@ -121,9 +127,7 @@ private:
     GridPage m_page = GridPage::Note;
     juce::NormalisableRange<float> m_range;
     float m_defaultValue = 0.0f;
-    std::array<std::unique_ptr<juce::ParameterAttachment>, kMaxSteps> m_attachments;
     std::array<float, kMaxSteps> m_values{};
-    std::array<bool, kMaxSteps> m_inGesture{};
     juce::Point<float> m_lastPosition;
     bool m_dragging = false;
 };
@@ -131,9 +135,13 @@ private:
 class StepGrid : public juce::Component
 {
 public:
-    explicit StepGrid(juce::AudioProcessorValueTreeState& apvts);
+    explicit StepGrid(PatternData& data);
 
     std::function<void(const juce::String&)> onInfo;
+    std::function<void()> onPatternDataEdited;           // the user changed a step or a bar
+
+    // reads all values again (after a preset was loaded or a MIDI note was entered)
+    void refreshFromData();
 
     // which pattern the grid shows and edits, and which parameter the bars show
     void setEditPattern(int patternIndex);

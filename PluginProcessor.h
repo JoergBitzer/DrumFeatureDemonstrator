@@ -59,6 +59,9 @@ public:
     juce::File getLastSampleFolder();
     void setLastSampleFolder(const juce::File& folder);
 
+    // message thread: the user changed the patterns; writes them into the plugin state (and so into presets and DAW projects)
+    void commitPatternData();
+
     float getScaleFactor(){return m_pluginScaleFactor;};
     void setScaleFactor(float newscalefactor){m_pluginScaleFactor = newscalefactor;};
     
@@ -72,6 +75,7 @@ private:
     void handleAsyncUpdate() override;
     juce::File getSamplesFolderOfUser();
     void loadSampleFromState();
+    bool loadPatternDataFromState();
 
     CriticalSection m_protect;
     float m_fs; // sampling rate is always needed
@@ -83,6 +87,7 @@ private:
     juce::String m_sampleName;
     bool m_presetsLoaded = false; // see ensurePresetsLoaded()
     juce::String m_loadedSampleFileName; // name of the copy in the samples folder that is loaded now
+    juce::String m_committedPatternText; // the pattern data (base64) that the state holds, to tell our own writes from a preset load
 #if WITH_MIDIKEYBOARD    
     MidiKeyboardState m_keyboardState;
     MidiModPitchBendState m_wheelState;

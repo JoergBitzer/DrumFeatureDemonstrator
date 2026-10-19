@@ -5,9 +5,11 @@ Run it from the project folder after changing a pattern:  python3 tools/make_fac
 Raise PRESET_VERSION when a preset changes (installed unmodified factory presets with a lower version are replaced).
 The presets contain no sample (the samples are not part of the repository): they keep the sample you have loaded.
 """
+import base64
 import os
+import struct
 
-PRESET_VERSION = 5 # 2: step note and velocity 1 - 127; 3: fade in / fade out; 4: four patterns, pan; 5: note value of a step
+PRESET_VERSION = 6 # 2: step note and velocity 1 - 127; 3: fade in / fade out; 4: four patterns, pan; 5: note value of a step; 6: patterns as one blob (PatternData)
 BASE_NOTE = 60
 NUM_STEPS = 32
 NUM_PATTERNS = 4
@@ -41,10 +43,21 @@ PRESETS = {
 }
 
 
-def step_prefix(pattern_index):
-    if pattern_index == 0:
-        return "Step"
-    return "P%dStep" % (pattern_index + 1)
+def pattern_blob(patterns, playing):
+    """The PatternData blob (format version 1, see src/PatternData.h): header, play mask, then per pattern and step
+    the floats active, mode, note, velocity, pan (little endian)."""
+    play_mask = 0
+    for pattern_number in playing:
+        play_mask |= 1 << (pattern_number - 1)
+    blob = b"DFDP" + bytes([1, NUM_PATTERNS, NUM_STEPS, play_mask])
+    for pattern_index in range(NUM_PATTERNS):
+        steps = patterns[pattern_index] if pattern_index < len(patterns) else {}
+        for step in range(1, NUM_STEPS + 1):
+            mode, pitch, velocity, pan = steps.get(step, (FORWARD, 0, 1.0, 0))
+            velocity = max(1, round(velocity * 127))
+            active = 1.0 if step in steps else 0.0
+            blob += struct.pack("<5f", active, float(mode), float(BASE_NOTE + pitch), float(velocity), float(pan))
+    return blob
 
 
 def preset_xml(name, length, patterns, playing, note_value=12):
@@ -54,22 +67,9 @@ def preset_xml(name, length, patterns, playing, note_value=12):
     lines = []
     for key in sorted(values):
         lines.append('  <PARAM id="%s" value="%.1f"/>' % (key, values[key]))
-    for pattern_number in range(1, NUM_PATTERNS + 1):
-        lines.append('  <PARAM id="PlayPattern%d" value="%.1f"/>' % (pattern_number, 1.0 if pattern_number in playing else 0.0))
-    lines.append('  <PARAM id="EditPattern" value="1.0"/>')
-    for pattern_index in range(NUM_PATTERNS):
-        steps = patterns[pattern_index] if pattern_index < len(patterns) else {}
-        for step in range(1, NUM_STEPS + 1):
-            mode, pitch, velocity, pan = steps.get(step, (FORWARD, 0, 1.0, 0))
-            velocity = max(1, round(velocity * 127))
-            active = 1.0 if step in steps else 0.0
-            prefix = "%s%02d" % (step_prefix(pattern_index), step)
-            lines.append('  <PARAM id="%sActive" value="%.1f"/>' % (prefix, active))
-            lines.append('  <PARAM id="%sMode" value="%.1f"/>' % (prefix, mode))
-            lines.append('  <PARAM id="%sNote" value="%.1f"/>' % (prefix, BASE_NOTE + pitch))
-            lines.append('  <PARAM id="%sVelocity" value="%.1f"/>' % (prefix, velocity))
-            lines.append('  <PARAM id="%sPan" value="%.2f"/>' % (prefix, pan))
-    header = '<DrumFeatureDemonstratorVTS presetname="%s" category="Unknown" bank="Factory" presetversion="%d">' % (name, PRESET_VERSION)
+    blob_text = base64.b64encode(pattern_blob(patterns, playing)).decode("ascii")
+    header = ('<DrumFeatureDemonstratorVTS presetname="%s" category="Unknown" bank="Factory" presetversion="%d" PatternData="%s">'
+              % (name, PRESET_VERSION, blob_text))
     return '<?xml version="1.0" encoding="UTF-8"?>\n' + header + "\n" + "\n".join(lines) + "\n</DrumFeatureDemonstratorVTS>\n"
 
 

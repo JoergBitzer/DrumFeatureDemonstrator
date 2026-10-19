@@ -11,7 +11,7 @@
 \hypersetup{colorlinks=true, linkcolor=red, urlcolor=red, pdftitle={DrumFeatureDemonstrator Documentation}}
 
 % ---- change these ------------------------------------------------------------
-\newcommand{\pluginversion}{0.12.1}   % the version in CMakeLists.txt
+\newcommand{\pluginversion}{0.13.0}   % the version in CMakeLists.txt
 \newcommand{\pluginauthor}{Joerg Bitzer}
 \newcommand{\sourceurl}{https://github.com/JoergBitzer/DrumFeatureDemonstrator}
 % -------------------------------------------------------------------------------
@@ -116,8 +116,8 @@ is also heard. The selection does not move by itself; use the cursor keys to go 
 
 \section{Controls}\label{sec:controls}
 All controls, their range and default value. Rest the mouse on a control to see its
-description as a tooltip. Every step $n$ (1 to 32) of every pattern $p$ (1 to 4) has five parameters (\texttt{Step}$nn$\texttt{Active}, \texttt{Mode}, \texttt{Note},
-\texttt{Velocity}, \texttt{Pan}; for patterns 2 to 4 with the prefix \texttt{P2}, \texttt{P3}, \texttt{P4}); they are described once in the last rows of the table.
+description as a tooltip. The steps of the four patterns (on/off and mode, note, velocity and pan of each step) and the play switches
+of the patterns are not listed: they are not host parameters, so a DAW cannot automate them. They are saved with the presets and with the project.
 
 \begin{center}
 \small

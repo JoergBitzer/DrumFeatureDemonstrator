@@ -80,26 +80,23 @@ juce::String StepStateButton::stateName(int state)
     return names[juce::jlimit(0, kNumStates - 1, state)];
 }
 
-void StepStateButton::bind(juce::AudioProcessorValueTreeState& apvts, int patternIndex, int stepIndex)
+void StepStateButton::bind(PatternData& data, int patternIndex, int stepIndex)
 {
-    m_activeAttachment.reset();
-    m_modeAttachment.reset();
-    m_activeAttachment = std::make_unique<juce::ParameterAttachment>(
-        *apvts.getParameter(stepParameterId(patternIndex, stepIndex, StepParam::Active)),
-        [this](float value)
-        {
-            m_active = value;
-            repaint();
-        });
-    m_modeAttachment = std::make_unique<juce::ParameterAttachment>(
-        *apvts.getParameter(stepParameterId(patternIndex, stepIndex, StepParam::Mode)),
-        [this](float value)
-        {
-            m_mode = value;
-            repaint();
-        });
-    m_activeAttachment->sendInitialUpdate();
-    m_modeAttachment->sendInitialUpdate();
+    m_data = &data;
+    m_patternIndex = patternIndex;
+    m_stepIndex = stepIndex;
+    refresh();
+}
+
+void StepStateButton::refresh()
+{
+    if (m_data == nullptr)
+    {
+        return;
+    }
+    m_active = m_data->getValue(m_patternIndex, m_stepIndex, StepParam::Active);
+    m_mode = m_data->getValue(m_patternIndex, m_stepIndex, StepParam::Mode);
+    repaint();
 }
 
 int StepStateButton::getState() const
@@ -137,20 +134,21 @@ void StepStateButton::setInvalid(bool isInvalid)
 void StepStateButton::mouseDown(const juce::MouseEvent& event)
 {
     juce::ignoreUnused(event);
-    if (m_activeAttachment == nullptr || m_modeAttachment == nullptr)
+    if (m_data == nullptr)
     {
         return;
     }
     const int newState = (getState() + 1) % kNumStates;
     if (newState == kStateOff)
     {
-        m_activeAttachment->setValueAsCompleteGesture(0.0f);
+        m_data->setValue(m_patternIndex, m_stepIndex, StepParam::Active, 0.0f);
     }
     else
     {
-        m_modeAttachment->setValueAsCompleteGesture(static_cast<float>(newState - kStateForward));
-        m_activeAttachment->setValueAsCompleteGesture(1.0f);
+        m_data->setValue(m_patternIndex, m_stepIndex, StepParam::Mode, static_cast<float>(newState - kStateForward));
+        m_data->setValue(m_patternIndex, m_stepIndex, StepParam::Active, 1.0f);
     }
+    refresh();
     if (onStateChangedByUser)
     {
         onStateChangedByUser();
@@ -235,10 +233,17 @@ void StepStateButton::paint(juce::Graphics& g)
 }
 
 // ---------------------------------------------------------------------------------------------- StepColumn
-StepColumn::StepColumn(int stepIndex, juce::AudioProcessorValueTreeState& apvts) : m_stepIndex(stepIndex), m_apvts(apvts)
+StepColumn::StepColumn(int stepIndex, PatternData& data) : m_stepIndex(stepIndex), m_data(data)
 {
     m_stateButton.setBeatAccent((stepIndex % kBeatLength) == 0);
-    m_stateButton.onStateChangedByUser = [this]() { reportState(); };
+    m_stateButton.onStateChangedByUser = [this]()
+    {
+        reportState();
+        if (onEdited)
+        {
+            onEdited();
+        }
+    };
     addAndMakeVisible(m_stateButton);
     bind(0);
     // a click anywhere in the column selects the step
@@ -248,8 +253,13 @@ StepColumn::StepColumn(int stepIndex, juce::AudioProcessorValueTreeState& apvts)
 void StepColumn::bind(int patternIndex)
 {
     m_patternIndex = patternIndex;
-    m_stateButton.bind(m_apvts, patternIndex, m_stepIndex);
+    m_stateButton.bind(m_data, patternIndex, m_stepIndex);
     repaint();
+}
+
+void StepColumn::refresh()
+{
+    m_stateButton.refresh();
 }
 
 void StepColumn::reportState()
@@ -312,8 +322,8 @@ void StepColumn::resized()
 }
 
 // ---------------------------------------------------------------------------------------------- ValueStrip
-ValueStrip::ValueStrip(juce::AudioProcessorValueTreeState& apvts, int firstStep, int numColumns)
-    : m_apvts(apvts), m_firstStep(firstStep), m_numColumns(numColumns)
+ValueStrip::ValueStrip(PatternData& data, int firstStep, int numColumns)
+    : m_data(data), m_firstStep(firstStep), m_numColumns(numColumns)
 {
     setTooltip("The bars show the note, velocity or pan of every step (the buttons below choose which). Draw over them with the mouse: "
                "a line from left to right sets all the bars it crosses. Double-click puts a bar back to its default.");
@@ -335,26 +345,20 @@ StepParam ValueStrip::pageParameter() const
 
 void ValueStrip::bind(int patternIndex, GridPage page)
 {
-    releaseGestures();
+    m_dragging = false;
     m_patternIndex = patternIndex;
     m_page = page;
+    const StepValueSpec spec = stepValueSpec(pageParameter());
+    m_range = juce::NormalisableRange<float>(spec.minValue, spec.maxValue);
+    m_defaultValue = spec.defaultValue;
+    refresh();
+}
+
+void ValueStrip::refresh()
+{
     for (int column = 0; column < m_numColumns; ++column)
     {
-        const std::size_t slot = static_cast<std::size_t>(column);
-        juce::RangedAudioParameter* parameter = m_apvts.getParameter(stepParameterId(patternIndex, m_firstStep + column, pageParameter()));
-        m_attachments[slot].reset();
-        m_attachments[slot] = std::make_unique<juce::ParameterAttachment>(*parameter,
-                                                                          [this, slot](float value)
-                                                                          {
-                                                                              m_values[slot] = value;
-                                                                              repaint();
-                                                                          });
-        m_attachments[slot]->sendInitialUpdate();
-        if (column == 0)
-        {
-            m_range = parameter->getNormalisableRange();
-            m_defaultValue = m_range.convertFrom0to1(parameter->getDefaultValue());
-        }
+        m_values[static_cast<std::size_t>(column)] = m_data.getValue(m_patternIndex, m_firstStep + column, pageParameter());
     }
     repaint();
 }
@@ -383,27 +387,18 @@ float ValueStrip::valueAtY(float y) const
 
 void ValueStrip::setColumnValue(int column, float value)
 {
-    const std::size_t slot = static_cast<std::size_t>(column);
-    if (m_inGesture[slot] == false)
-    {
-        m_attachments[slot]->beginGesture();
-        m_inGesture[slot] = true;
-    }
-    m_attachments[slot]->setValueAsPartOfGesture(value);
+    const int stepIndex = m_firstStep + column;
+    m_data.setValue(m_patternIndex, stepIndex, pageParameter(), value);
+    m_values[static_cast<std::size_t>(column)] = m_data.getValue(m_patternIndex, stepIndex, pageParameter());
+    repaint();
 }
 
-void ValueStrip::releaseGestures()
+void ValueStrip::notifyEdited()
 {
-    for (int column = 0; column < m_numColumns; ++column)
+    if (onEdited)
     {
-        const std::size_t slot = static_cast<std::size_t>(column);
-        if (m_inGesture[slot] && m_attachments[slot] != nullptr)
-        {
-            m_attachments[slot]->endGesture();
-        }
-        m_inGesture[slot] = false;
+        onEdited();
     }
-    m_dragging = false;
 }
 
 juce::String ValueStrip::describe(int column) const
@@ -417,6 +412,7 @@ void ValueStrip::mouseDown(const juce::MouseEvent& event)
     m_lastPosition = event.position;
     const int column = columnAt(event.position.x);
     setColumnValue(column, valueAtY(event.position.y));
+    notifyEdited();
     if (onInfo)
     {
         onInfo(describe(column));
@@ -448,6 +444,7 @@ void ValueStrip::mouseDrag(const juce::MouseEvent& event)
         setColumnValue(column, valueAtY(y));
     }
     m_lastPosition = event.position;
+    notifyEdited();
     if (onInfo)
     {
         onInfo(describe(lastColumn));
@@ -457,7 +454,7 @@ void ValueStrip::mouseDrag(const juce::MouseEvent& event)
 void ValueStrip::mouseUp(const juce::MouseEvent& event)
 {
     juce::ignoreUnused(event);
-    releaseGestures();
+    m_dragging = false;
 }
 
 void ValueStrip::mouseMove(const juce::MouseEvent& event)
@@ -471,8 +468,8 @@ void ValueStrip::mouseMove(const juce::MouseEvent& event)
 void ValueStrip::mouseDoubleClick(const juce::MouseEvent& event)
 {
     const int column = columnAt(event.position.x);
-    const std::size_t slot = static_cast<std::size_t>(column);
-    m_attachments[slot]->setValueAsCompleteGesture(m_defaultValue);
+    setColumnValue(column, m_defaultValue);
+    notifyEdited();
     if (onInfo)
     {
         onInfo(describe(column));
@@ -530,13 +527,20 @@ void ValueStrip::paint(juce::Graphics& g)
 }
 
 // ---------------------------------------------------------------------------------------------- StepGrid
-StepGrid::StepGrid(juce::AudioProcessorValueTreeState& apvts)
+StepGrid::StepGrid(PatternData& data)
 {
     for (int stepIndex = 0; stepIndex < kMaxSteps; ++stepIndex)
     {
-        m_columns[static_cast<std::size_t>(stepIndex)] = std::make_unique<StepColumn>(stepIndex, apvts);
+        m_columns[static_cast<std::size_t>(stepIndex)] = std::make_unique<StepColumn>(stepIndex, data);
         StepColumn& column = *m_columns[static_cast<std::size_t>(stepIndex)];
         column.onSelected = [this](int selectedIndex) { setSelectedStep(selectedIndex); };
+        column.onEdited = [this]()
+        {
+            if (onPatternDataEdited)
+            {
+                onPatternDataEdited();
+            }
+        };
         column.onInfo = [this](const juce::String& text)
         {
             if (onInfo)
@@ -548,8 +552,15 @@ StepGrid::StepGrid(juce::AudioProcessorValueTreeState& apvts)
     }
     for (int row = 0; row < kNumRows; ++row)
     {
-        m_strips[static_cast<std::size_t>(row)] = std::make_unique<ValueStrip>(apvts, row * kStepsPerRow, kStepsPerRow);
+        m_strips[static_cast<std::size_t>(row)] = std::make_unique<ValueStrip>(data, row * kStepsPerRow, kStepsPerRow);
         ValueStrip& strip = *m_strips[static_cast<std::size_t>(row)];
+        strip.onEdited = [this]()
+        {
+            if (onPatternDataEdited)
+            {
+                onPatternDataEdited();
+            }
+        };
         strip.onInfo = [this](const juce::String& text)
         {
             if (onInfo)
@@ -558,6 +569,18 @@ StepGrid::StepGrid(juce::AudioProcessorValueTreeState& apvts)
             }
         };
         addAndMakeVisible(strip);
+    }
+}
+
+void StepGrid::refreshFromData()
+{
+    for (auto& column : m_columns)
+    {
+        column->refresh();
+    }
+    for (auto& strip : m_strips)
+    {
+        strip->refresh();
     }
 }
 

@@ -69,7 +69,9 @@ starts or jumps into the run-up) the sound is not played and a notice tells why.
 - **Info line** with the value of the control under the mouse (no room for an edit field per bar).
 - **Presets**: all four patterns, region, fades and the sample name; seven factory presets (they keep your sample).
   A DAW project contains the sample itself (up to 8 MB), so it works without the samples folder.
-- Day and night theme, resizable window, all controls automatable, undo and the red *Save* button work.
+- Day and night theme, resizable window. The base note, start/end, fades, pattern length, step note value and the tempo controls are
+  host parameters (automatable); the patterns themselves (steps, notes, velocities, pans, play switches) are not parameters but data
+  that is saved in presets and DAW projects, so they cannot be automated. The red *Save* button shows every change.
 
 ### Drag and drop on Linux
 Hosts such as Bitwig embed the plugin window in a window of their own that does not accept file drops. The
@@ -149,6 +151,7 @@ the zips are attached to the workflow run.
 | `src/` | the algorithm without GUI code: `StepScheduler` (pure scheduling incl. play to end and the chain of four patterns), `Sequencer` (transport, internal clock), `VoiceBank` / `SampleVoice` (resampling playback, fades), `SampleHolder` (lock-free hand-over), `SampleStore` (samples folder, project state), `StepParameters`, `NoteNames` |
 | `src/platform/` | `XdndTarget`: file drops into a host window on Linux (plain Xlib) |
 | `gui/` | `WaveformView`, `StepGrid`, `PatternSelector` |
+| `src/PatternData.*` | the four patterns as lock-free data (no host parameters), saved as one blob (format in the header) in the plugin state |
 | `DrumFeatureDemonstrator.*`, `Plugin*.*` | parameters, audio glue, main GUI, editor (from the template) |
 | `tests/` | unit tests (`juce::UnitTest`, CTest); `tests/manual/` small tools to test drag and drop by hand |
 | `tools/` | template helpers (preset handler, day/night look, pluginval scripts), the `Tester`, `fetch_samples.sh`, `make_factory_presets.py` |

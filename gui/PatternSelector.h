@@ -14,6 +14,7 @@
 
 #include <juce_audio_processors/juce_audio_processors.h>
 
+#include "../src/PatternData.h"
 #include "../src/StepScheduler.h"
 
 namespace dfd
@@ -39,10 +40,14 @@ private:
 class PatternSelector : public juce::Component
 {
 public:
-    explicit PatternSelector(juce::AudioProcessorValueTreeState& apvts);
+    explicit PatternSelector(PatternData& data);
 
-    int getEditPattern() const; // 0 - 3
+    int getEditPattern() const; // 0 - 3 (kept by the selector, not saved)
     std::function<void(int)> onEditPatternChanged;
+    std::function<void()> onPlaySwitchesEdited;   // the user switched a pattern on or off
+
+    // shows the play switches of the PatternData again (after a preset was loaded)
+    void refresh();
 
     // called by the GUI timer: the pattern that plays now, -1 if none
     void setPlayingPattern(int patternIndex);
@@ -53,10 +58,9 @@ public:
 private:
     void setEditPatternValue(int patternIndex);
 
-    juce::ParameterAttachment m_editAttachment;
+    PatternData& m_data;
     std::array<std::unique_ptr<PatternButton>, kNumPatterns> m_playButtons;
     std::array<std::unique_ptr<PatternButton>, kNumPatterns> m_editButtons;
-    std::array<std::unique_ptr<juce::AudioProcessorValueTreeState::ButtonAttachment>, kNumPatterns> m_playAttachments;
     int m_editPattern = 0;
     int m_playingPattern = -1;
 };

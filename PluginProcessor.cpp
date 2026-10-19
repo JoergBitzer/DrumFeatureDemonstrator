@@ -23,6 +23,7 @@ DrumFeatureDemonstratorAudioProcessor::DrumFeatureDemonstratorAudioProcessor()
         AudioProcessorValueTreeState::ParameterLayout(m_paramVector.begin(), m_paramVector.end()));
 
     m_algo.prepareParameter(m_parameterVTS);
+    commitPatternData(); // the state always holds the pattern data, so a preset saved before the first edit has it too
     m_parameterVTS->state.addListener(this);
 
 	m_presets.setAudioValueTreeState(m_parameterVTS.get());
@@ -193,6 +194,7 @@ void DrumFeatureDemonstratorAudioProcessor::processBlock (juce::AudioBuffer<floa
 //==============================================================================
 namespace
 {
+const char* const kPatternDataProperty = "PatternData";
 const char* const kSampleFileProperty = "SampleFile";
 const char* const kSampleDataChild = "SampleData";
 const char* const kSampleDataNameProperty = "name";
@@ -221,11 +223,49 @@ bool DrumFeatureDemonstratorAudioProcessor::loadSample(const juce::File& file)
     return true;
 }
 
+void DrumFeatureDemonstratorAudioProcessor::commitPatternData()
+{
+    const std::vector<std::uint8_t> bytes = m_algo.getPatternData().toBytes();
+    m_committedPatternText = juce::Base64::toBase64(bytes.data(), bytes.size());
+    m_parameterVTS->state.setProperty(kPatternDataProperty, m_committedPatternText, nullptr);
+}
+
+// reads the pattern data from the state; false if the state has none or an invalid one (the data stays as it is)
+bool DrumFeatureDemonstratorAudioProcessor::loadPatternDataFromState()
+{
+    const juce::String text = m_parameterVTS->state.getProperty(kPatternDataProperty).toString();
+    if (text.isEmpty())
+    {
+        return false;
+    }
+    juce::MemoryOutputStream decoded;
+    if (juce::Base64::convertFromBase64(decoded, text) == false)
+    {
+        return false;
+    }
+    const std::uint8_t* bytes = static_cast<const std::uint8_t*>(decoded.getData());
+    if (m_algo.getPatternData().fromBytes(bytes, decoded.getDataSize()) == false)
+    {
+        return false;
+    }
+    m_committedPatternText = text;
+    return true;
+}
+
 void DrumFeatureDemonstratorAudioProcessor::valueTreePropertyChanged(juce::ValueTree& tree, const juce::Identifier& property)
 {
-    if (tree == m_parameterVTS->state && property == juce::Identifier(kSampleFileProperty))
+    if (tree != m_parameterVTS->state)
+    {
+        return;
+    }
+    if (property == juce::Identifier(kSampleFileProperty))
     {
         triggerAsyncUpdate();
+    }
+    if (property == juce::Identifier(kPatternDataProperty)
+        && tree.getProperty(kPatternDataProperty).toString() != m_committedPatternText)
+    {
+        loadPatternDataFromState(); // somebody else changed the property (not commitPatternData)
     }
 }
 
@@ -233,6 +273,7 @@ void DrumFeatureDemonstratorAudioProcessor::valueTreeRedirected(juce::ValueTree&
 {
     if (tree == m_parameterVTS->state)
     {
+        loadPatternDataFromState();
         triggerAsyncUpdate();
     }
 }
@@ -240,6 +281,12 @@ void DrumFeatureDemonstratorAudioProcessor::valueTreeRedirected(juce::ValueTree&
 void DrumFeatureDemonstratorAudioProcessor::handleAsyncUpdate()
 {
     loadSampleFromState();
+    const juce::String stateText = m_parameterVTS->state.getProperty(kPatternDataProperty).toString();
+    if (stateText != m_committedPatternText)
+    {
+        // a state without (valid) pattern data, e.g. a preset of an older version: it keeps the current patterns, write them back
+        commitPatternData();
+    }
 }
 
 void DrumFeatureDemonstratorAudioProcessor::loadSampleFromState()
@@ -337,6 +384,8 @@ void DrumFeatureDemonstratorAudioProcessor::getStateInformation (juce::MemoryBlo
     // You could do that either as raw data, or use the XML or ValueTree classes
     // as intermediaries to make it easy to save and load complex data.
 	auto state = m_parameterVTS->copyState();
+    const std::vector<std::uint8_t> patternBytes = m_algo.getPatternData().toBytes();
+    state.setProperty(kPatternDataProperty, juce::Base64::toBase64(patternBytes.data(), patternBytes.size()), nullptr);
     ValueTree vtpluginsize("PluginSize");
     vtpluginsize.setProperty("ScaleFactor",m_pluginScaleFactor,nullptr);
     state.appendChild(vtpluginsize,nullptr);

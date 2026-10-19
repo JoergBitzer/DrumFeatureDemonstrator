@@ -17,7 +17,7 @@ endif()
 
 set(TARGET_NAME DrumFeatureDemonstrator)
 
-project(${TARGET_NAME} VERSION 0.12.1)
+project(${TARGET_NAME} VERSION 0.13.0)
 
 if(NOT TARGET juce::juce_core) # JUCE not added by a parent project: use the submodule
     if(NOT EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/JUCE/CMakeLists.txt")
@@ -96,7 +96,8 @@ target_sources(${TARGET_NAME}
         tools/SynchronBlockProcessor.cpp
         src/StepScheduler.cpp
         src/Sequencer.cpp
-        src/StepParameters.cpp
+        src/StepValues.cpp
+        src/PatternData.cpp
         src/SampleData.cpp
         src/SampleVoice.cpp
         src/VoiceBank.cpp
@@ -199,8 +200,11 @@ if(DFD_BUILD_UNIT_TESTS)
         tests/SequencerTests.cpp
         tests/PatternChainTests.cpp
         tests/SampleStoreTests.cpp
+        tests/PatternDataTests.cpp
         src/StepScheduler.cpp
         src/Sequencer.cpp
+        src/StepValues.cpp
+        src/PatternData.cpp
         src/SampleData.cpp
         src/SampleVoice.cpp
         src/VoiceBank.cpp

@@ -34,6 +34,7 @@ DrumFeatureDemonstratorAudioProcessorEditor::DrumFeatureDemonstratorAudioProcess
 
     for (auto* parameter : m_processorRef.getParameters())
         parameter->addListener(this);
+    m_processorRef.m_parameterVTS->state.addListener(this);
 
 #if WITH_DAYNIGHT
     bool presetFolderWasCreated;
@@ -55,8 +56,21 @@ DrumFeatureDemonstratorAudioProcessorEditor::~DrumFeatureDemonstratorAudioProces
 #if WITH_DAYNIGHT
     setLookAndFeel(nullptr);
 #endif
+    m_processorRef.m_parameterVTS->state.removeListener(this);
     for (auto* parameter : m_processorRef.getParameters())
         parameter->removeListener(this);
+}
+
+void DrumFeatureDemonstratorAudioProcessorEditor::valueTreePropertyChanged(juce::ValueTree& tree, const juce::Identifier& property)
+{
+    juce::ignoreUnused(tree);
+    if (property != juce::Identifier("PatternData"))
+        return;
+    juce::MessageManager::callAsync([safeThis = juce::Component::SafePointer<DrumFeatureDemonstratorAudioProcessorEditor>(this)]
+    {
+        if (safeThis != nullptr)
+            safeThis->m_presetGUI.setSomethingChanged();
+    });
 }
 
 void DrumFeatureDemonstratorAudioProcessorEditor::parameterGestureChanged(int, bool gestureIsStarting)
