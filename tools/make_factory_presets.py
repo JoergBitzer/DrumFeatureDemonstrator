@@ -9,7 +9,7 @@ import base64
 import os
 import struct
 
-PRESET_VERSION = 7 # 2: step note and velocity 1 - 127; 3: fade in / fade out; 4: four patterns, pan; 5: note value of a step; 6: patterns as one blob (PatternData); 7: blob version 2 with the pattern settings
+PRESET_VERSION = 8 # 2: step note and velocity 1 - 127; 3: fade in / fade out; 4: four patterns, pan; 5: note value of a step; 6: patterns as one blob (PatternData); 7: blob version 2 with the pattern settings; 8: blob version 3 with repeat and ramp
 BASE_NOTE = 60
 NUM_STEPS = 32
 NUM_PATTERNS = 4
@@ -23,7 +23,7 @@ DECLICK = 0.0
 
 # name: (pattern length, [pattern 1, pattern 2, ...], patterns that play[, note value index])
 # note value index: base * 3 + flavour; base 0 = 1/1, 1 = 1/2, 2 = 1/4, 3 = 1/8, 4 = 1/16 (the default, 12), 5 = 1/32, 6 = 1/64; flavour 0 normal, 1 dotted, 2 triplet
-# a pattern: {step number (1-based): (mode, semitones relative to the base note, velocity 0 - 1 (written as 1 - 127), pan -1 .. 1)}
+# a pattern: {step number (1-based): (mode, semitones relative to the base note, velocity 0 - 1 (written as 1 - 127), pan -1 .. 1[, repeat 1 - 8[, ramp -1 .. 1]])}
 PRESETS = {
     "Four on the floor": (16, [{1: (FORWARD, 0, 1.0, 0), 5: (FORWARD, 0, 0.9, 0), 9: (FORWARD, 0, 1.0, 0), 13: (FORWARD, 0, 0.9, 0)}], [1]),
     "Reverse into the beat": (16, [{1: (FORWARD, 0, 1.0, 0), 9: (FORWARD, 0, 1.0, 0),
@@ -36,6 +36,8 @@ PRESETS = {
                            12: (REVERSE, -5, 0.8, 0), 16: (REVERSE_TO_END, 0, 0.9, 0)}], [1, 2]),
     "Triplets": (12, [{1: (FORWARD, 0, 1.0, 0), 4: (FORWARD, 0, 0.8, 0), 7: (FORWARD, 0, 1.0, 0), 10: (FORWARD, 0, 0.8, 0),
                       3: (FORWARD, 7, 0.5, 0.4), 6: (FORWARD, 7, 0.5, -0.4), 12: (REVERSE_TO_END, 0, 0.8, 0)}], [1], 11),  # 1/8 triplets
+    "Ratchets": (16, [{1: (FORWARD, 0, 1.0, 0), 5: (FORWARD, 0, 0.9, 0, 2), 7: (FORWARD, 5, 0.7, 0, 4, 0.6), 9: (FORWARD, 0, 1.0, 0),
+                       11: (FORWARD, 0, 0.7, 0, 4, -0.6), 13: (REVERSE_TO_END, 0, 0.8, 0, 2), 15: (FORWARD, 7, 0.6, 0.3, 8, 0.8)}], [1]),
     "Four patterns": (8, [{1: (FORWARD, 0, 1.0, 0), 5: (FORWARD, 0, 0.8, 0)},
                           {1: (FORWARD, 0, 1.0, 0), 3: (FORWARD, 5, 0.6, -0.6), 5: (FORWARD, 0, 0.8, 0), 7: (FORWARD, 5, 0.6, 0.6)},
                           {1: (FORWARD, 0, 1.0, 0), 5: (FORWARD, 7, 0.8, 0), 8: (REVERSE_TO_END, 0, 0.8, 0)},
@@ -45,20 +47,27 @@ PRESETS = {
 
 
 def pattern_blob(patterns, playing, length, note_value):
-    """The PatternData blob (format version 2, see src/PatternData.h): header, play mask, the settings (length, note value,
-    sync to host, declick), then per pattern and step the floats active, mode, note, velocity, pan (little endian)."""
+    """The PatternData blob (format version 3, see src/PatternData.h): header, play mask, the settings (length, note value,
+    sync to host, declick), then per pattern and step the floats active, mode, note, velocity, pan, repeat, ramp (little endian)."""
     play_mask = 0
     for pattern_number in playing:
         play_mask |= 1 << (pattern_number - 1)
-    blob = b"DFDP" + bytes([2, NUM_PATTERNS, NUM_STEPS, play_mask])
+    blob = b"DFDP" + bytes([3, NUM_PATTERNS, NUM_STEPS, play_mask])
     blob += struct.pack("<4f", float(length), float(note_value), SYNC_TO_HOST, DECLICK)
     for pattern_index in range(NUM_PATTERNS):
         steps = patterns[pattern_index] if pattern_index < len(patterns) else {}
         for step in range(1, NUM_STEPS + 1):
-            mode, pitch, velocity, pan = steps.get(step, (FORWARD, 0, 1.0, 0))
+            entry = steps.get(step, (FORWARD, 0, 1.0, 0))
+            mode, pitch, velocity, pan = entry[:4]
+            repeat = 1
+            ramp = 0.0
+            if len(entry) > 4:
+                repeat = entry[4]
+            if len(entry) > 5:
+                ramp = entry[5]
             velocity = max(1, round(velocity * 127))
             active = 1.0 if step in steps else 0.0
-            blob += struct.pack("<5f", active, float(mode), float(BASE_NOTE + pitch), float(velocity), float(pan))
+            blob += struct.pack("<7f", active, float(mode), float(BASE_NOTE + pitch), float(velocity), float(pan), float(repeat), float(ramp))
     return blob
 
 

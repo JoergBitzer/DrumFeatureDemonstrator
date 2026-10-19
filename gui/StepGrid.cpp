@@ -35,6 +35,8 @@ constexpr float kStepsAreaFraction = 0.50f;   // of the height of a row: numbers
 constexpr float kRowGapFraction = 0.05f;
 constexpr float kCentrePanTolerance = 0.005f;
 constexpr float kPercent = 100.0f;
+constexpr float kRepeatFontFactor = 0.28f;
+constexpr float kRepeatInset = 2.0f;
 const juce::Colour kInvalidColour(0xFFE05050);
 const juce::Colour kCurrentColour(0xFFF2D43C); // yellow frame of the current / selected step
 
@@ -54,6 +56,28 @@ juce::String describeValue(int patternIndex, int stepIndex, GridPage page, float
     if (page == GridPage::Velocity)
     {
         return stepText + " velocity: " + juce::String(static_cast<int>(std::lround(value)));
+    }
+    if (page == GridPage::Repeat)
+    {
+        const int repeat = static_cast<int>(std::lround(value));
+        if (repeat <= 1)
+        {
+            return stepText + " repeat: once (no ratchet)";
+        }
+        return stepText + " repeat: " + juce::String(repeat) + " hits in the step";
+    }
+    if (page == GridPage::Ramp)
+    {
+        if (std::abs(value) < kCentrePanTolerance)
+        {
+            return stepText + " ramp: even spacing of the repeats";
+        }
+        juce::String direction = "speeding up";
+        if (value < 0.0f)
+        {
+            direction = "slowing down";
+        }
+        return stepText + " ramp: " + direction + " (" + juce::String(static_cast<int>(std::lround(std::abs(value) * kPercent))) + " %)";
     }
     if (std::abs(value) < kCentrePanTolerance)
     {
@@ -96,6 +120,7 @@ void StepStateButton::refresh()
     }
     m_active = m_data->getValue(m_patternIndex, m_stepIndex, StepParam::Active);
     m_mode = m_data->getValue(m_patternIndex, m_stepIndex, StepParam::Mode);
+    m_repeat = static_cast<int>(std::lround(m_data->getValue(m_patternIndex, m_stepIndex, StepParam::Repeat)));
     repaint();
 }
 
@@ -225,6 +250,13 @@ void StepStateButton::paint(juce::Graphics& g)
         g.setColour(kInvalidColour);
         g.drawRoundedRectangle(bounds, kCornerSize, 1.0f);
     }
+    if (state != kStateOff && m_repeat > 1)
+    {
+        // the number of hits (a ratchet) in the corner of the button
+        g.setColour(onColour.contrasting(1.0f));
+        g.setFont(bounds.getHeight() * kRepeatFontFactor);
+        g.drawText("x" + juce::String(m_repeat), bounds.reduced(kRepeatInset), juce::Justification::bottomRight);
+    }
     if (m_current)
     {
         g.setColour(kCurrentColour);
@@ -339,6 +371,14 @@ StepParam ValueStrip::pageParameter() const
     if (m_page == GridPage::Pan)
     {
         return StepParam::Pan;
+    }
+    if (m_page == GridPage::Repeat)
+    {
+        return StepParam::Repeat;
+    }
+    if (m_page == GridPage::Ramp)
+    {
+        return StepParam::Ramp;
     }
     return StepParam::Note;
 }
@@ -499,7 +539,7 @@ void ValueStrip::drawBar(juce::Graphics& g, int column) const
     const float proportion = m_range.convertTo0to1(m_values[static_cast<std::size_t>(column)]);
     const float valueY = height * (1.0f - proportion);
     float baselineY = height;
-    if (m_page == GridPage::Pan)
+    if (m_page == GridPage::Pan || m_page == GridPage::Ramp)
     {
         baselineY = height * kHalf;
     }
@@ -516,7 +556,7 @@ void ValueStrip::paint(juce::Graphics& g)
     {
         drawBar(g, column);
     }
-    if (m_page == GridPage::Pan)
+    if (m_page == GridPage::Pan || m_page == GridPage::Ramp)
     {
         g.setColour(textColour.withAlpha(kStripBorderAlpha));
         const float middle = static_cast<float>(getHeight()) * kHalf;
@@ -556,6 +596,10 @@ StepGrid::StepGrid(PatternData& data)
         ValueStrip& strip = *m_strips[static_cast<std::size_t>(row)];
         strip.onEdited = [this]()
         {
+            if (m_page == GridPage::Repeat)
+            {
+                refreshColumns(); // the buttons show the number of repeats
+            }
             if (onPatternDataEdited)
             {
                 onPatternDataEdited();
@@ -572,12 +616,17 @@ StepGrid::StepGrid(PatternData& data)
     }
 }
 
-void StepGrid::refreshFromData()
+void StepGrid::refreshColumns()
 {
     for (auto& column : m_columns)
     {
         column->refresh();
     }
+}
+
+void StepGrid::refreshFromData()
+{
+    refreshColumns();
     for (auto& strip : m_strips)
     {
         strip->refresh();

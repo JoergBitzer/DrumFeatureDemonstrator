@@ -17,7 +17,7 @@ endif()
 
 set(TARGET_NAME DrumFeatureDemonstrator)
 
-project(${TARGET_NAME} VERSION 0.13.1)
+project(${TARGET_NAME} VERSION 0.14.0)
 
 if(NOT TARGET juce::juce_core) # JUCE not added by a parent project: use the submodule
     if(NOT EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/JUCE/CMakeLists.txt")
@@ -98,6 +98,7 @@ target_sources(${TARGET_NAME}
         src/Sequencer.cpp
         src/StepValues.cpp
         src/PatternData.cpp
+        src/PatternLibrary.cpp
         src/SampleData.cpp
         src/SampleVoice.cpp
         src/VoiceBank.cpp
@@ -108,6 +109,7 @@ target_sources(${TARGET_NAME}
         gui/WaveformView.cpp
         gui/StepGrid.cpp
         gui/PatternSelector.cpp
+        gui/PatternTools.cpp
         )
 
 
@@ -201,10 +203,13 @@ if(DFD_BUILD_UNIT_TESTS)
         tests/PatternChainTests.cpp
         tests/SampleStoreTests.cpp
         tests/PatternDataTests.cpp
+        tests/PatternLibraryTests.cpp
+        tests/RepeatTests.cpp
         src/StepScheduler.cpp
         src/Sequencer.cpp
         src/StepValues.cpp
         src/PatternData.cpp
+        src/PatternLibrary.cpp
         src/SampleData.cpp
         src/SampleVoice.cpp
         src/VoiceBank.cpp

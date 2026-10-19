@@ -24,6 +24,9 @@ constexpr double kSemitonesPerOctave = 12.0;
 constexpr double kSecondsPerMinute = 60.0;
 constexpr double kDefaultBaseNote = 60.0; // MIDI note of the original pitch of the sample (C4)
 constexpr float kMaxMidiVelocity = 127.0f;
+constexpr int kMinRepeats = 1;
+constexpr int kMaxRepeats = 8;
+constexpr double kRampExponentRange = 1.5; // the hits of a step are at (k / n) ^ (2 ^ (-ramp * this)) of the step
 
 enum class StepMode
 {
@@ -39,6 +42,8 @@ struct StepSettings
     double noteNumber = kDefaultBaseNote; // MIDI note: the sample sounds at its original pitch if it equals the base note
     float velocity = kMaxMidiVelocity;    // MIDI velocity 1 - 127, the gain is velocity / 127
     float pan = 0.0f;                     // -1 left, 0 centre, 1 right
+    int repeat = 1;                       // hits within the step (1 - 8)
+    float ramp = 0.0f;                    // -1 .. 1: spacing of the hits (positive: they speed up, negative: they slow down)
 };
 
 struct Pattern
@@ -103,6 +108,11 @@ const StepSettings& stepAt(const Pattern& pattern, int stepIndex);
 // semitones of the step relative to the base note of the pattern
 double stepSemitones(const Pattern& pattern, const StepSettings& step);
 double stepSemitones(const PatternBank& bank, const StepSettings& step);
+
+// the hits of a step with several repeats: hit k (0 .. count - 1) starts at this fraction (0 .. 1) of the step and its part of the step
+// ends at the start of the next hit (the last one at the end of the step). Ramp 0 spaces them evenly.
+double repeatStartFraction(int repeatCount, double ramp, int hitIndex);
+double repeatEndFraction(int repeatCount, double ramp, int hitIndex);
 
 double playbackRatio(double pitchSemitones, double fileSampleRate, double hostSampleRate);
 double durationInHostSamples(const SampleRegion& region, double playbackRatio);

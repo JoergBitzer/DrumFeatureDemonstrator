@@ -6,14 +6,14 @@
  * 640 parameters). They live in lock-free atomics, so the GUI thread can edit them while the audio thread reads them, and they
  * are saved as one binary blob (toBytes / fromBytes), which the processor stores in the plugin state and in the presets.
  *
- * Blob format (version 2), all numbers little endian:
+ * Blob format (version 3), all numbers little endian:
  *   4 bytes  magic "DFDP"
- *   1 byte   format version (2)
+ *   1 byte   format version (3)
  *   1 byte   number of patterns (4)
  *   1 byte   number of steps per pattern (32)
  *   1 byte   bit mask of the patterns that play (bit 0 = pattern 1)
  *   4 floats the settings in the order of PatternSetting (length, note value, sync to host, declick)
- *   then for every pattern, every step, the values in the order of StepParam (active, mode, note, velocity, pan)
+ *   then for every pattern, every step, the values in the order of StepParam (active, mode, note, velocity, pan, repeat, ramp)
  * Every number after the header is a 32-bit float (IEEE 754).
  * Pure C++ (no JUCE types).
  */
@@ -30,6 +30,13 @@
 
 namespace dfd
 {
+// the values of the 32 steps of one pattern (for copy and paste, the pattern library); the order is step by step, five values per step
+// in the order of StepParam
+struct PatternSteps
+{
+    std::array<float, kMaxSteps * kNumValuesPerStep> values;
+};
+
 class PatternData
 {
 public:
@@ -43,6 +50,13 @@ public:
     // the settings (see PatternSetting): integer values, limited to their range
     float getSetting(PatternSetting setting) const;
     void setSetting(PatternSetting setting, float value);
+
+    // whole patterns: read, replace, clear (all steps off, default values) and rotate the first `length` steps by numSteps steps
+    // (positive: to the right, steps that leave the end come back at the start)
+    PatternSteps getPattern(int patternIndex) const;
+    void setPattern(int patternIndex, const PatternSteps& steps);
+    void clearPattern(int patternIndex);
+    void shiftPattern(int patternIndex, int numSteps, int length);
 
     // which patterns are played
     bool isPlaying(int patternIndex) const;

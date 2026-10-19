@@ -10,7 +10,7 @@ namespace
 {
 constexpr std::size_t kMagicSize = 4;
 constexpr std::uint8_t kMagic[kMagicSize] = {'D', 'F', 'D', 'P'};
-constexpr std::uint8_t kFormatVersion = 2;
+constexpr std::uint8_t kFormatVersion = 3;
 constexpr std::size_t kBytesPerValue = 4;
 constexpr std::size_t kFixedHeaderSize = kMagicSize + 4; // magic, version, number of patterns, number of steps, play mask
 constexpr std::size_t kHeaderSize = kFixedHeaderSize + kNumPatternSettings * kBytesPerValue; // and the settings
@@ -79,7 +79,7 @@ float PatternData::limitedValue(StepParam param, float value)
         return spec.defaultValue;
     }
     float limited = std::clamp(value, spec.minValue, spec.maxValue);
-    if (param == StepParam::Active || param == StepParam::Mode)
+    if (param == StepParam::Active || param == StepParam::Mode || param == StepParam::Repeat)
     {
         limited = std::round(limited);
     }
@@ -114,6 +114,59 @@ float PatternData::getValue(int patternIndex, int stepIndex, StepParam param) co
 void PatternData::setValue(int patternIndex, int stepIndex, StepParam param, float value)
 {
     m_values[valueSlot(patternIndex, stepIndex, param)].store(limitedValue(param, value));
+}
+
+PatternSteps PatternData::getPattern(int patternIndex) const
+{
+    PatternSteps steps;
+    for (int stepIndex = 0; stepIndex < kMaxSteps; ++stepIndex)
+    {
+        for (int paramIndex = 0; paramIndex < kNumValuesPerStep; ++paramIndex)
+        {
+            steps.values[static_cast<std::size_t>(stepIndex * kNumValuesPerStep + paramIndex)] =
+                getValue(patternIndex, stepIndex, static_cast<StepParam>(paramIndex));
+        }
+    }
+    return steps;
+}
+
+void PatternData::setPattern(int patternIndex, const PatternSteps& steps)
+{
+    for (int stepIndex = 0; stepIndex < kMaxSteps; ++stepIndex)
+    {
+        for (int paramIndex = 0; paramIndex < kNumValuesPerStep; ++paramIndex)
+        {
+            setValue(patternIndex, stepIndex, static_cast<StepParam>(paramIndex),
+                     steps.values[static_cast<std::size_t>(stepIndex * kNumValuesPerStep + paramIndex)]);
+        }
+    }
+}
+
+void PatternData::clearPattern(int patternIndex)
+{
+    for (int stepIndex = 0; stepIndex < kMaxSteps; ++stepIndex)
+    {
+        for (int paramIndex = 0; paramIndex < kNumValuesPerStep; ++paramIndex)
+        {
+            const StepParam param = static_cast<StepParam>(paramIndex);
+            setValue(patternIndex, stepIndex, param, stepValueSpec(param).defaultValue);
+        }
+    }
+}
+
+void PatternData::shiftPattern(int patternIndex, int numSteps, int length)
+{
+    const int usedLength = std::clamp(length, 1, kMaxSteps);
+    const PatternSteps before = getPattern(patternIndex);
+    for (int stepIndex = 0; stepIndex < usedLength; ++stepIndex)
+    {
+        const int target = ((stepIndex + numSteps) % usedLength + usedLength) % usedLength;
+        for (int paramIndex = 0; paramIndex < kNumValuesPerStep; ++paramIndex)
+        {
+            setValue(patternIndex, target, static_cast<StepParam>(paramIndex),
+                     before.values[static_cast<std::size_t>(stepIndex * kNumValuesPerStep + paramIndex)]);
+        }
+    }
 }
 
 bool PatternData::isPlaying(int patternIndex) const
@@ -161,6 +214,8 @@ void PatternData::fillBank(PatternBank& bank) const
             step.noteNumber = static_cast<double>(getValue(patternIndex, stepIndex, StepParam::Note));
             step.velocity = getValue(patternIndex, stepIndex, StepParam::Velocity);
             step.pan = getValue(patternIndex, stepIndex, StepParam::Pan);
+            step.repeat = static_cast<int>(std::lround(getValue(patternIndex, stepIndex, StepParam::Repeat)));
+            step.ramp = getValue(patternIndex, stepIndex, StepParam::Ramp);
         }
     }
 }

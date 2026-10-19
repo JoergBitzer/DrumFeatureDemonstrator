@@ -59,16 +59,30 @@ double chainLengthInBeats(const PatternBank& bank)
     return chainLengthInSteps(bank) * bank.stepLengthInBeats;
 }
 
-// start of a sound in beats (ppq): globalStepIndex counts the steps of the whole chain from the position 0 on
-double startInBeats(const StepSettings& step, long long globalStepIndex, double stepLengthInBeats, double durationInBeats)
+int clampedRepeat(int repeat)
+{
+    if (repeat < kMinRepeats)
+    {
+        return kMinRepeats;
+    }
+    if (repeat > kMaxRepeats)
+    {
+        return kMaxRepeats;
+    }
+    return repeat;
+}
+
+// start of hit number hitIndex of a step in beats (ppq): globalStepIndex counts the steps of the whole chain from the position 0 on
+double startInBeats(const StepSettings& step, long long globalStepIndex, double stepLengthInBeats, double durationInBeats, int hitIndex)
 {
     const double stepStart = static_cast<double>(globalStepIndex) * stepLengthInBeats;
+    const int repeatCount = clampedRepeat(step.repeat);
     if (step.mode == StepMode::ReverseToEnd)
     {
-        const double anchor = stepStart + stepLengthInBeats;
+        const double anchor = stepStart + repeatEndFraction(repeatCount, step.ramp, hitIndex) * stepLengthInBeats;
         return anchor - durationInBeats;
     }
-    return stepStart;
+    return stepStart + repeatStartFraction(repeatCount, step.ramp, hitIndex) * stepLengthInBeats;
 }
 
 bool isStepScheduled(const PatternBank& bank, const StepSettings& step, const SampleRegion& region, const Transport& transport)
@@ -108,6 +122,27 @@ long long globalStepIndexOf(const PatternBank& bank, int pass, int chainSlot, in
     return static_cast<long long>(pass) * chainSteps + static_cast<long long>(chainSlot) * numUsedSteps(bank) + stepIndex;
 }
 } // namespace
+
+double repeatStartFraction(int repeatCount, double ramp, int hitIndex)
+{
+    const int count = clampedRepeat(repeatCount);
+    if (hitIndex <= 0)
+    {
+        return 0.0;
+    }
+    if (hitIndex >= count)
+    {
+        return 1.0;
+    }
+    const double clampedRamp = std::fmax(-1.0, std::fmin(1.0, ramp));
+    const double exponent = std::pow(2.0, -clampedRamp * kRampExponentRange);
+    return std::pow(static_cast<double>(hitIndex) / static_cast<double>(count), exponent);
+}
+
+double repeatEndFraction(int repeatCount, double ramp, int hitIndex)
+{
+    return repeatStartFraction(repeatCount, ramp, hitIndex + 1);
+}
 
 PatternBank makeBank(const Pattern& pattern)
 {
@@ -286,31 +321,35 @@ void scheduleBlock(const PatternBank& bank, const SampleRegion& region, const Tr
                     continue;
                 }
                 const double duration = durationInBeats(bank, step, region, transport);
-                const double start = startInBeats(step, globalStepIndexOf(bank, pass, chainSlot, stepIndex), bank.stepLengthInBeats, duration);
-                const double offsetInSamples = std::round((start - blockStartPpq) * beatLength);
-                if (offsetInSamples < 0.0)
+                const long long globalStepIndex = globalStepIndexOf(bank, pass, chainSlot, stepIndex);
+                for (int hitIndex = 0; hitIndex < clampedRepeat(step.repeat); ++hitIndex)
                 {
-                    continue;
-                }
-                if (offsetInSamples >= numSamples)
-                {
-                    continue;
-                }
+                    const double start = startInBeats(step, globalStepIndex, bank.stepLengthInBeats, duration, hitIndex);
+                    const double offsetInSamples = std::round((start - blockStartPpq) * beatLength);
+                    if (offsetInSamples < 0.0)
+                    {
+                        continue;
+                    }
+                    if (offsetInSamples >= numSamples)
+                    {
+                        continue;
+                    }
 
-                if (static_cast<int>(soundStarts.size()) >= kMaxSoundStartsPerBlock)
-                {
-                    return;
+                    if (static_cast<int>(soundStarts.size()) >= kMaxSoundStartsPerBlock)
+                    {
+                        return;
+                    }
+                    SoundStart soundStart;
+                    soundStart.patternIndex = patternIndex;
+                    soundStart.stepIndex = stepIndex;
+                    soundStart.sampleOffsetInBlock = static_cast<int>(offsetInSamples);
+                    soundStart.playbackRatio = playbackRatio(stepSemitones(bank, step), region.fileSampleRate, transport.hostSampleRate);
+                    soundStart.reverse = (step.mode != StepMode::Forward);
+                    soundStart.playsToEnd = (step.mode == StepMode::ReverseToEnd);
+                    soundStart.gain = step.velocity / kMaxMidiVelocity;
+                    soundStart.pan = step.pan;
+                    soundStarts.push_back(soundStart);
                 }
-                SoundStart soundStart;
-                soundStart.patternIndex = patternIndex;
-                soundStart.stepIndex = stepIndex;
-                soundStart.sampleOffsetInBlock = static_cast<int>(offsetInSamples);
-                soundStart.playbackRatio = playbackRatio(stepSemitones(bank, step), region.fileSampleRate, transport.hostSampleRate);
-                soundStart.reverse = (step.mode != StepMode::Forward);
-                soundStart.playsToEnd = (step.mode == StepMode::ReverseToEnd);
-                soundStart.gain = step.velocity / kMaxMidiVelocity;
-                soundStart.pan = step.pan;
-                soundStarts.push_back(soundStart);
             }
         }
     }
@@ -358,11 +397,15 @@ int countMissedPlayToEnd(const PatternBank& bank, const SampleRegion& region, co
                     continue;
                 }
                 const double duration = durationInBeats(bank, step, region, transport);
-                const double start = startInBeats(step, globalStepIndexOf(bank, pass, chainSlot, stepIndex), bank.stepLengthInBeats, duration);
-                const double anchor = start + duration;
-                if (start < positionPpq && positionPpq < anchor)
+                const long long globalStepIndex = globalStepIndexOf(bank, pass, chainSlot, stepIndex);
+                for (int hitIndex = 0; hitIndex < clampedRepeat(step.repeat); ++hitIndex)
                 {
-                    ++missedSounds;
+                    const double start = startInBeats(step, globalStepIndex, bank.stepLengthInBeats, duration, hitIndex);
+                    const double anchor = start + duration;
+                    if (start < positionPpq && positionPpq < anchor)
+                    {
+                        ++missedSounds;
+                    }
                 }
             }
         }
