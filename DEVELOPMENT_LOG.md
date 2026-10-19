@@ -193,3 +193,37 @@ Wishes of the author: (1) the sliders should be vertical and so close together t
 - **Not done:** removing the cause completely; options if it matters: far fewer host-visible parameters (the step data as part of the saved state instead of 650 automatable parameters), or preset files that only contain what differs from the default.
 - **Comparison with another of the author's plug-ins and the final build:** JadeSpectrogram2 (JUCE, AAT based) with the full pluginval run including the GUI tests: 0 of 30 crashes. The installed Release build 0.12.0: 8 of 8 full runs without a crash or warning (the Release build is faster, which seems to make the crash rarer; the Debug build with GUI tests still crashed in about one run of five before the script repeated it). The debug flag file `/tmp/dfd_debug.flag` that switches the diagnostic log on was removed again, so nothing is written to `/tmp` any more.
 
+
+## Round 9: root cause of the pluginval crash (analysis only, no DFD code changed)
+
+Question: is the intermittent SIGSEGV of pluginval a problem of our plugin or of pluginval?
+
+Evidence:
+- gdb (round 8): crash in pluginval's own VST3 host run loop (`RunLoop::Impl`, use-after-free in the fd-callback map), main thread, plugin code not on the stack.
+- JUCE commit 04e167d646 (in 9.0.2) fixes exactly this host race (the Linux event loop copies callbacks per iteration, `~Impl` can run inside another fd's callback). pluginval 1.0.4 embeds JUCE 8.0.3 (without the fix).
+- Decisive experiment: pluginval 2.0.0 built from source (JUCE 9.0.4, Release, `/home/bitzer/AudioDev/PluginvalAnalysis/pluginval`), same Debug plugin, `xvfb-run -a`, strictness 10:
+
+| Plugin | pluginval 1.0.4 | pluginval 2.0.0 |
+|---|---|---|
+| DFD 0.12.0 Debug (with GUI tests), 30 runs | 3/30 crashed | 0/30 |
+
+- Stress plugin (copy of AAT2, N float parameters, Y presets written and read in the constructor, env `STRESS_PARAMS` / `STRESS_PRESETS`, `--skip-gui-tests`, 20 runs per cell):
+
+| Parameters | Presets | 1.0.4 crashes | 2.0.0 crashes |
+|---|---|---|---|
+| 1 | 0 | 0/20 | |
+| 1 | 12 | 0/20 | |
+| 1000 | 0 | 3/20 | |
+| 1000 | 12 | 2/20 | |
+| 1000 | 40 | 3/20 | 0/20 |
+| 3000 | 40 | 8/20 | 0/20 |
+
+Conclusions:
+- It is a pluginval (host) bug, fixed upstream in JUCE 9.0.2. Not a mutex problem in our plugin: the race is inside the host's own run-loop bookkeeping.
+- The crash rate scales with the number of parameters (0 at 1, ~12% at 1000, 40% at 3000), not with the number of presets (0 vs 12 vs 40 presets at 1000 parameters: no trend). Many parameters make instance creation/destruction slower and the plugin registers more work in the loop, which widens the race window; this is why DFD (~655 parameters) is affected and small plugins are not.
+- A long-running constructor is not the trigger by itself (presets alone: no effect).
+- No load was reduced for any of these results.
+
+Consequences / open:
+- `tools/run_pluginval.sh` should use pluginval >= 2.0.0 (JUCE 9.0.4) instead of tolerating the crash; the retry/"counted as passed" logic can then be removed (not done yet: user decides).
+- Stress plugin is outside the repository: `/home/bitzer/AudioDev/PluginvalAnalysis/StressPlugin`.
