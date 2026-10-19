@@ -16,10 +16,12 @@ enum class StepParam
     Mode,
     Note,
     Velocity,
-    Pan
+    Pan,
+    Repeat, // 1 - 8 hits in the step (ratchet)
+    Ramp    // -1 .. 1: how the repeats are spaced (negative: slowing down, 0: even, positive: speeding up)
 };
 
-constexpr int kNumValuesPerStep = 5;
+constexpr int kNumValuesPerStep = 7;
 constexpr float kMinStepNote = 12.0f;  // C0
 constexpr float kMaxStepNote = 108.0f; // C8
 constexpr float kDefaultStepNote = 60.0f; // C4
@@ -32,6 +34,12 @@ constexpr float kCentrePan = 0.0f;
 constexpr float kModeForward = 0.0f;
 constexpr float kModeReverse = 1.0f;
 constexpr float kModeReverseToEnd = 2.0f;
+constexpr float kMinRepeat = 1.0f;
+constexpr float kMaxRepeat = 8.0f;
+constexpr float kDefaultRepeat = 1.0f;
+constexpr float kMinRamp = -1.0f;
+constexpr float kMaxRamp = 1.0f;
+constexpr float kDefaultRamp = 0.0f;
 
 struct StepValueSpec
 {

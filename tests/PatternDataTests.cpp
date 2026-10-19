@@ -10,7 +10,7 @@ namespace
 constexpr std::size_t kBytesPerValue = 4;
 constexpr std::size_t kNumSettingsInBlob = 4;
 constexpr std::size_t kHeaderSize = 8 + kNumSettingsInBlob * kBytesPerValue;
-constexpr std::size_t kExpectedBlobSize = kHeaderSize + 4 * 32 * 5 * kBytesPerValue;
+constexpr std::size_t kExpectedBlobSize = kHeaderSize + 4 * 32 * 7 * kBytesPerValue;
 constexpr float kTinyTolerance = 1.0e-6f;
 constexpr std::size_t kPlayMaskIndex = 7;
 constexpr std::size_t kFirstSettingIndex = 8;
@@ -33,6 +33,8 @@ public:
         testDefaults();
         testLimits();
         testSettings();
+        testRepeatAndRamp();
+        testPatternTools();
         testFillBank();
         testBlobRoundTrip();
         testBlobLayout();
@@ -105,6 +107,70 @@ private:
         expectEquals(restored.getSetting(dfd::PatternSetting::Declick), 1.0f);
     }
 
+    void testRepeatAndRamp()
+    {
+        beginTest("repeat and ramp: defaults 1 and 0, limits, repeat is rounded, they reach the bank and the blob");
+        dfd::PatternData data;
+        expectEquals(data.getValue(0, 0, dfd::StepParam::Repeat), 1.0f);
+        expectEquals(data.getValue(0, 0, dfd::StepParam::Ramp), 0.0f);
+        data.setValue(0, 3, dfd::StepParam::Repeat, 99.0f);
+        expectEquals(data.getValue(0, 3, dfd::StepParam::Repeat), 8.0f);
+        data.setValue(0, 3, dfd::StepParam::Repeat, 0.0f);
+        expectEquals(data.getValue(0, 3, dfd::StepParam::Repeat), 1.0f);
+        data.setValue(0, 3, dfd::StepParam::Repeat, 3.4f);
+        expectEquals(data.getValue(0, 3, dfd::StepParam::Repeat), 3.0f);
+        data.setValue(0, 3, dfd::StepParam::Ramp, -5.0f);
+        expectEquals(data.getValue(0, 3, dfd::StepParam::Ramp), -1.0f);
+        data.setValue(0, 3, dfd::StepParam::Ramp, 0.25f);
+
+        dfd::PatternBank bank;
+        data.fillBank(bank);
+        expectEquals(dfd::stepAt(bank, 0, 3).repeat, 3);
+        expectEquals(dfd::stepAt(bank, 0, 3).ramp, 0.25f);
+        expectEquals(dfd::stepAt(bank, 0, 4).repeat, 1);
+
+        const std::vector<std::uint8_t> bytes = data.toBytes();
+        dfd::PatternData restored;
+        expect(restored.fromBytes(bytes.data(), bytes.size()));
+        expectEquals(restored.getValue(0, 3, dfd::StepParam::Repeat), 3.0f);
+        expectEquals(restored.getValue(0, 3, dfd::StepParam::Ramp), 0.25f);
+    }
+
+    void testPatternTools()
+    {
+        beginTest("pattern tools: copy, paste, clear and shift (rotation inside the pattern length)");
+        dfd::PatternData data;
+        data.setValue(1, 0, dfd::StepParam::Active, 1.0f);
+        data.setValue(1, 0, dfd::StepParam::Note, 70.0f);
+        data.setValue(1, 7, dfd::StepParam::Active, 1.0f);
+        data.setValue(1, 20, dfd::StepParam::Active, 1.0f); // behind the length of 8 used below
+
+        const dfd::PatternSteps copy = data.getPattern(1);
+        data.setPattern(2, copy);
+        expectEquals(data.getValue(2, 0, dfd::StepParam::Note), 70.0f);
+        expectEquals(data.getValue(2, 7, dfd::StepParam::Active), 1.0f);
+
+        data.shiftPattern(1, 1, 8); // to the right: step 0 -> 1, step 7 -> 0, step 20 stays
+        expectEquals(data.getValue(1, 0, dfd::StepParam::Active), 1.0f);
+        expectEquals(data.getValue(1, 1, dfd::StepParam::Active), 1.0f);
+        expectEquals(data.getValue(1, 1, dfd::StepParam::Note), 70.0f);
+        expectEquals(data.getValue(1, 7, dfd::StepParam::Active), 0.0f);
+        expectEquals(data.getValue(1, 20, dfd::StepParam::Active), 1.0f);
+        data.shiftPattern(1, -2, 8); // to the left: step 1 -> 7, step 0 -> 6
+        expectEquals(data.getValue(1, 7, dfd::StepParam::Active), 1.0f);
+        expectEquals(data.getValue(1, 6, dfd::StepParam::Active), 1.0f);
+        expectEquals(data.getValue(1, 1, dfd::StepParam::Active), 0.0f);
+        expectEquals(data.getValue(2, 0, dfd::StepParam::Active), 1.0f); // the copy is not touched
+
+        data.clearPattern(1);
+        for (int stepIndex = 0; stepIndex < dfd::kMaxSteps; ++stepIndex)
+        {
+            expectEquals(data.getValue(1, stepIndex, dfd::StepParam::Active), 0.0f);
+            expectEquals(data.getValue(1, stepIndex, dfd::StepParam::Note), dfd::kDefaultStepNote);
+        }
+        expectEquals(data.getValue(2, 0, dfd::StepParam::Active), 1.0f); // other patterns are not touched
+    }
+
     void testFillBank()
     {
         beginTest("fillBank copies steps and play switches (mode 0, 1, 2 become forward, reverse, reverse to end)");
@@ -164,7 +230,7 @@ private:
         const std::vector<std::uint8_t> bytes = data.toBytes();
         expectEquals(static_cast<int>(bytes.size()), static_cast<int>(kExpectedBlobSize));
         expect(bytes[0] == 'D' && bytes[1] == 'F' && bytes[2] == 'D' && bytes[3] == 'P');
-        expectEquals(static_cast<int>(bytes[4]), 2);   // version
+        expectEquals(static_cast<int>(bytes[4]), 3);   // version
         expectEquals(static_cast<int>(bytes[5]), 4);   // patterns
         expectEquals(static_cast<int>(bytes[6]), 32);  // steps
         expectEquals(static_cast<int>(bytes[kPlayMaskIndex]), 1); // only pattern 1 plays

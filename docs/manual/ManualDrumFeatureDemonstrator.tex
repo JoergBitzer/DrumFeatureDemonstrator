@@ -11,7 +11,7 @@
 \hypersetup{colorlinks=true, linkcolor=red, urlcolor=red, pdftitle={DrumFeatureDemonstrator Documentation}}
 
 % ---- change these ------------------------------------------------------------
-\newcommand{\pluginversion}{0.13.1}   % the version in CMakeLists.txt
+\newcommand{\pluginversion}{0.14.0}   % the version in CMakeLists.txt
 \newcommand{\pluginauthor}{Joerg Bitzer}
 \newcommand{\sourceurl}{https://github.com/JoergBitzer/DrumFeatureDemonstrator}
 % -------------------------------------------------------------------------------
@@ -84,10 +84,16 @@ Linux:   /home/yourUSERNAME/.config/Jade_Hochschule/DrumFeatureDemonstrator
     \item \textbf{Steps}: every step has \textbf{one button with four states}. Each click goes one state further: off $\rightarrow$ forward $\rightarrow$
     reverse $\rightarrow$ reverse + play to end $\rightarrow$ off (the symbol shows the state). Below the buttons are the \textbf{bars}: one vertical bar per step,
     side by side. The buttons at the bottom choose what the bars show (the \emph{page}): the \textbf{note} (a MIDI note, shown as e.g. C4; the sample sounds at its
-    original pitch when the note equals the base note), the \textbf{velocity} (MIDI velocity 1 to 127) or the \textbf{pan} (left -- centre -- right).
+    original pitch when the note equals the base note), the \textbf{velocity} (MIDI velocity 1 to 127) the \textbf{pan} (left -- centre -- right), the \textbf{repeat} (1 to 8 hits within the step, a ratchet; the step button then shows $\times n$) or the
+    \textbf{ramp} (how the repeats are spaced: in the middle evenly, above it the hits speed up, below it they slow down; it has an effect with a repeat above 1).
+    With reverse + play to end, every repeat ends at the end of its part of the step.
     \textbf{Draw on the bars with the mouse}: press, and drag from left to right (or in any direction): every bar the mouse passes takes the height of the mouse, so a
     line sets all the values at once. A double-click puts a bar back to its default. The yellow frame in the grid shows the step that is playing
     (if the playing pattern is the one shown).
+    \item \textbf{Pattern tools} (small buttons right of the pattern buttons, drawn as icons): \textbf{copy} the edited pattern and \textbf{paste} it into the edited
+    pattern (also into another one), \textbf{clear} it, \textbf{shift} it one step to the left or right (inside the pattern length; steps that leave come back on the other side),
+    \textbf{undo} the last paste, clear, shift or library action, and the \textbf{pattern library}: a menu with typical patterns in the categories BD, SD, HH, Perc and
+    Chromatic (the chromatic ones use note offsets from C4). A library pattern replaces the edited pattern; the pattern length and the note value are not changed.
     \item \textbf{Step}: the \textbf{note value} that one step represents, from 1/1 to 1/64, each normal, dotted ($\times 1.5$) or as a triplet ($\times 2/3$). The default is 1/16.
     A pattern of 16 steps of 1/16 is one bar of 4/4; with 12 steps of 1/8 triplets it is one bar of triplets. Play to end ends at the end of the step, whatever its length.
     \item \textbf{Info line} (below the steps): shows the value of the control under the mouse and of the control you change,

@@ -1,5 +1,6 @@
 #include <math.h>
 #include "DrumFeatureDemonstrator.h"
+#include "src/PatternLibrary.h"
 
 #include "PluginProcessor.h"
 #include "src/NoteNames.h"
@@ -410,7 +411,8 @@ DrumFeatureDemonstratorGUI::DrumFeatureDemonstratorGUI(DrumFeatureDemonstratorAu
     constexpr int kPageRadioGroup = 2001;
     setupLabel(m_pageLabel, "Bars");
     addAndMakeVisible(m_pageLabel);
-    const std::pair<juce::TextButton*, juce::String> pageButtons[] = {{&m_pageNoteButton, "Note"}, {&m_pageVelocityButton, "Velocity"}, {&m_pagePanButton, "Pan"}};
+    const std::pair<juce::TextButton*, juce::String> pageButtons[] = {{&m_pageNoteButton, "Note"}, {&m_pageVelocityButton, "Velocity"}, {&m_pagePanButton, "Pan"},
+                                                                       {&m_pageRepeatButton, "Repeat"}, {&m_pageRampButton, "Ramp"}};
     for (const auto& entry : pageButtons)
     {
         entry.first->setButtonText(entry.second);
@@ -423,6 +425,11 @@ DrumFeatureDemonstratorGUI::DrumFeatureDemonstratorGUI(DrumFeatureDemonstratorAu
     m_pageNoteButton.onClick = [this]() { m_stepGrid.setPage(dfd::GridPage::Note); };
     m_pageVelocityButton.onClick = [this]() { m_stepGrid.setPage(dfd::GridPage::Velocity); };
     m_pagePanButton.onClick = [this]() { m_stepGrid.setPage(dfd::GridPage::Pan); };
+    m_pageRepeatButton.onClick = [this]() { m_stepGrid.setPage(dfd::GridPage::Repeat); };
+    m_pageRampButton.onClick = [this]() { m_stepGrid.setPage(dfd::GridPage::Ramp); };
+    m_pageRepeatButton.setTooltip(dfd::stepValueSpec(dfd::StepParam::Repeat).help);
+    m_pageRampButton.setTooltip(dfd::stepValueSpec(dfd::StepParam::Ramp).help);
+    setupPatternTools();
 
     m_noticeLabel.setJustificationType(juce::Justification::centredLeft);
     m_noticeLabel.setColour(juce::Label::textColourId, kNoticeColour);
@@ -577,6 +584,85 @@ void DrumFeatureDemonstratorGUI::showInfo(const juce::String& text)
 int DrumFeatureDemonstratorGUI::currentPatternLength() const
 {
     return static_cast<int>(std::lround(m_lengthSlider.getValue()));
+}
+
+void DrumFeatureDemonstratorGUI::rememberForUndo()
+{
+    m_undoPattern = currentEditPattern();
+    m_undoSteps = m_processor.m_algo.getPatternData().getPattern(m_undoPattern);
+    m_patternTools.setUndoEnabled(true);
+}
+
+void DrumFeatureDemonstratorGUI::patternEditedByTool(const juce::String& info)
+{
+    m_stepGrid.refreshFromData();
+    m_processor.commitPatternData();
+    showInfo(info);
+}
+
+void DrumFeatureDemonstratorGUI::setupPatternTools()
+{
+    m_patternTools.onCopy = [this]()
+    {
+        m_clipboard = m_processor.m_algo.getPatternData().getPattern(currentEditPattern());
+        m_hasClipboard = true;
+        m_patternTools.setPasteEnabled(true);
+        showInfo("Pattern " + juce::String(currentEditPattern() + 1) + " copied.");
+    };
+    m_patternTools.onPaste = [this]()
+    {
+        if (m_hasClipboard == false)
+        {
+            return;
+        }
+        rememberForUndo();
+        m_processor.m_algo.getPatternData().setPattern(currentEditPattern(), m_clipboard);
+        patternEditedByTool("Pasted into pattern " + juce::String(currentEditPattern() + 1) + ".");
+    };
+    m_patternTools.onClear = [this]()
+    {
+        rememberForUndo();
+        m_processor.m_algo.getPatternData().clearPattern(currentEditPattern());
+        patternEditedByTool("Pattern " + juce::String(currentEditPattern() + 1) + " cleared.");
+    };
+    m_patternTools.onShiftLeft = [this]()
+    {
+        rememberForUndo();
+        m_processor.m_algo.getPatternData().shiftPattern(currentEditPattern(), -1, currentPatternLength());
+        patternEditedByTool("Pattern " + juce::String(currentEditPattern() + 1) + " shifted one step to the left.");
+    };
+    m_patternTools.onShiftRight = [this]()
+    {
+        rememberForUndo();
+        m_processor.m_algo.getPatternData().shiftPattern(currentEditPattern(), 1, currentPatternLength());
+        patternEditedByTool("Pattern " + juce::String(currentEditPattern() + 1) + " shifted one step to the right.");
+    };
+    m_patternTools.onUndo = [this]()
+    {
+        if (m_undoPattern < 0)
+        {
+            return;
+        }
+        m_processor.m_algo.getPatternData().setPattern(m_undoPattern, m_undoSteps);
+        const int undonePattern = m_undoPattern;
+        m_undoPattern = -1;
+        m_patternTools.setUndoEnabled(false);
+        patternEditedByTool("Pattern " + juce::String(undonePattern + 1) + " restored.");
+    };
+    m_patternTools.onLibraryEntryChosen = [this](int entryIndex)
+    {
+        dfd::PatternSteps steps;
+        const dfd::LibraryEntry& entry = dfd::libraryEntry(entryIndex);
+        if (dfd::makePatternSteps(entry, steps) == false)
+        {
+            return;
+        }
+        rememberForUndo();
+        m_processor.m_algo.getPatternData().setPattern(currentEditPattern(), steps);
+        patternEditedByTool("Pattern " + juce::String(currentEditPattern() + 1) + ": " + entry.category + " - " + entry.name
+                            + " (the pattern length and the note value are not changed).");
+    };
+    addAndMakeVisible(m_patternTools);
 }
 
 // the controls show the settings of the PatternData (without sending a change back)
@@ -861,6 +947,8 @@ void DrumFeatureDemonstratorGUI::resized()
     r.removeFromTop(margin);
     auto patternStrip = r.removeFromTop(static_cast<int>(kPatternStripFraction * static_cast<float>(height)));
     m_patternSelector.setBounds(patternStrip.removeFromLeft(static_cast<int>(kPatternStripWidthFraction * static_cast<float>(r.getWidth()))));
+    patternStrip.removeFromLeft(margin);
+    m_patternTools.setBounds(patternStrip);
     r.removeFromTop(margin);
     auto bottomBar = r.removeFromBottom(static_cast<int>(kBottomBarFraction * static_cast<float>(height)));
     const int pageUnit = bottomBar.getWidth() / 20;
@@ -868,6 +956,8 @@ void DrumFeatureDemonstratorGUI::resized()
     m_pageNoteButton.setBounds(bottomBar.removeFromLeft(2 * pageUnit).reduced(margin / 2, 1));
     m_pageVelocityButton.setBounds(bottomBar.removeFromLeft(2 * pageUnit).reduced(margin / 2, 1));
     m_pagePanButton.setBounds(bottomBar.removeFromLeft(2 * pageUnit).reduced(margin / 2, 1));
+    m_pageRepeatButton.setBounds(bottomBar.removeFromLeft(2 * pageUnit).reduced(margin / 2, 1));
+    m_pageRampButton.setBounds(bottomBar.removeFromLeft(2 * pageUnit).reduced(margin / 2, 1));
     m_infoLabel.setBounds(bottomBar.reduced(margin, 0));
     m_stepGrid.setBounds(r);
 }

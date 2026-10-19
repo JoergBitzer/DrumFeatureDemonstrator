@@ -15,6 +15,7 @@
 #include "gui/WaveformView.h"
 #include "gui/StepGrid.h"
 #include "gui/PatternSelector.h"
+#include "gui/PatternTools.h"
 #include "tools/ParameterSpec.h"
 #include "PluginSettings.h"
 const struct
@@ -203,6 +204,9 @@ private:
     void applyStepEntries();
     void refreshPatternViews();
     void showPatternSettings();
+    void setupPatternTools();
+    void rememberForUndo();
+    void patternEditedByTool(const juce::String& info);
     void setPatternSetting(dfd::PatternSetting setting, float value);
     void showInfo(const juce::String& text);
     int currentPatternLength() const;
@@ -242,6 +246,13 @@ private:
     juce::TextButton m_pageNoteButton;
     juce::TextButton m_pageVelocityButton;
     juce::TextButton m_pagePanButton;
+    juce::TextButton m_pageRepeatButton;
+    juce::TextButton m_pageRampButton;
+    dfd::PatternTools m_patternTools;
+    dfd::PatternSteps m_clipboard{};      // copy and paste of a pattern
+    bool m_hasClipboard = false;
+    dfd::PatternSteps m_undoSteps{};      // the edited pattern as it was before the last tool action
+    int m_undoPattern = -1;
     std::unique_ptr<juce::FileChooser> m_fileChooser;
 
     juce::AudioProcessorValueTreeState::SliderAttachment m_baseNoteAttachment;

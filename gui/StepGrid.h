@@ -21,7 +21,9 @@ enum class GridPage
 {
     Note,
     Velocity,
-    Pan
+    Pan,
+    Repeat,
+    Ramp
 };
 
 // one button for the state of a step: off -> forward -> reverse -> reverse + play to end -> off (it sets the values "Active" and "Mode" of the PatternData)
@@ -55,6 +57,7 @@ private:
     int m_stepIndex = 0;
     float m_active = 0.0f;
     float m_mode = 0.0f;
+    int m_repeat = 1;
     bool m_current = false;
     bool m_beatAccent = false;
     bool m_invalid = false;
@@ -157,6 +160,8 @@ public:
     void resized() override;
 
 private:
+    void refreshColumns();
+
     static constexpr int kStepsPerRow = 16;
     static constexpr int kNumRows = kMaxSteps / kStepsPerRow;
 

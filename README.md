@@ -60,14 +60,17 @@ starts or jumps into the run-up) the sound is not played and a notice tells why.
 - **Four patterns** of 8 to 32 steps (the same length for all): switch each pattern on or off for playback (the ones that
   are on are played one after the other, 1 to 4), choose which one you edit; a yellow frame marks the pattern that plays.
 - **Step grid**: one button per step with four states (off, forward, reverse, reverse + play to end) and, below, a row of
-  vertical **bars** whose *page* you choose: **note** (MIDI note), **velocity** (MIDI value) or **pan**; **draw over the bars** with
-  the mouse and every bar you cross follows the line. The **base note** (C1 - C5) is where the sample sits in the scale.
+  vertical **bars** whose *page* you choose: **note** (MIDI note), **velocity** (MIDI value), **pan**, **repeat** (1 - 8 hits in
+  the step, a ratchet) or **ramp** (the repeats speed up or slow down); **draw over the bars** with the mouse and every bar you cross
+  follows the line. The **base note** (C1 - C5) is where the sample sits in the scale.
+- **Pattern tools** (icons): copy, paste, clear, shift left / right, undo, and a **pattern library** with typical patterns
+  (BD, SD, HH, Perc, Chromatic).
 - **Step note value** from 1/1 to 1/64, normal, dotted or as a triplet (default 1/16).
 - **Host sync** (follows tempo and position of the DAW) or an **internal beat** with Play/Pause and the space key.
 - **MIDI keyboard** and MIDI input play the sample with pitch and velocity. While the transport stands, the
   selected step (yellow frame; cursor keys or a click select it) takes the note and velocity of what you play.
 - **Info line** with the value of the control under the mouse (no room for an edit field per bar).
-- **Presets**: all four patterns, region, fades and the sample name; seven factory presets (they keep your sample).
+- **Presets**: all four patterns, region, fades and the sample name; eight factory presets (they keep your sample).
   A DAW project contains the sample itself (up to 8 MB), so it works without the samples folder.
 - Day and night theme, resizable window. Only the base note, start, end, fade in, fade out and the internal tempo are host
   parameters (automatable). Everything that belongs to the patterns is not a parameter but data that is saved in presets and DAW

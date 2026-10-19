@@ -48,6 +48,22 @@ StepValueSpec stepValueSpec(StepParam param)
         spec.numDecimalPlaces = 2;
         spec.help = "Pan of this step: -1 = left, 0 = centre, 1 = right (balance: the centre keeps the full level of both channels).";
         break;
+    case StepParam::Repeat:
+        spec.name = "Repeat";
+        spec.minValue = kMinRepeat;
+        spec.maxValue = kMaxRepeat;
+        spec.defaultValue = kDefaultRepeat;
+        spec.numDecimalPlaces = 0;
+        spec.help = "How often the sample is played within this step (1 - 8, a ratchet). With reverse + play to end every hit ends at the end of its part of the step.";
+        break;
+    case StepParam::Ramp:
+        spec.name = "Ramp";
+        spec.minValue = kMinRamp;
+        spec.maxValue = kMaxRamp;
+        spec.defaultValue = kDefaultRamp;
+        spec.numDecimalPlaces = 2;
+        spec.help = "Spacing of the repeats of this step: 0 = even, positive = speeding up (the hits come closer together), negative = slowing down.";
+        break;
     }
     return spec;
 }
