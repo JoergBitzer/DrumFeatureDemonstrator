@@ -70,9 +70,8 @@ jobs:
           ctest --test-dir build -C Release --output-on-failure
 
       # pluginval (see tools/run_pluginval.*): a failing plugin stops the release
-      - name: Test with pluginval (Linux)
-        if: runner.os == 'Linux'
-        run: xvfb-run -a tools/run_pluginval.sh "$ARTEFACTS/VST3/$PRODUCT.vst3" 1
+      # Linux: pluginval 2 itself needs a newer glibc than Ubuntu 22.04 (which builds the plugin on purpose, so that it runs on older
+      # distributions): it is tested in the job "pluginval-linux" below, on Ubuntu 24.04, with the plugin from this build
 
       - name: Test with pluginval (macOS)
         if: runner.os == 'macOS'
@@ -136,9 +135,34 @@ jobs:
           name: ${{ env.PRODUCT }}-${{ matrix.name }}
           path: ${{ env.PRODUCT }}-${{ matrix.name }}.zip
 
+  pluginval-linux:
+    name: pluginval (Linux)
+    needs: build
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Linux dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libasound2-dev libjack-jackd2-dev \
+            libfreetype-dev libfontconfig1-dev \
+            libx11-dev libxcomposite-dev libxcursor-dev libxext-dev libxinerama-dev libxrandr-dev libxrender-dev libxi-dev \
+            libglu1-mesa-dev mesa-common-dev xvfb
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: ${{ env.PRODUCT }}-Linux
+          path: linux-build
+
+      - name: Test the Linux plugin with pluginval
+        run: |
+          unzip -q linux-build/$PRODUCT-Linux.zip -d linux-build
+          xvfb-run -a tools/run_pluginval.sh "linux-build/$PRODUCT/$PRODUCT.vst3" 1
+
   release:
     name: Create release
-    needs: build
+    needs: [build, pluginval-linux]
     if: startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-latest
     permissions:
