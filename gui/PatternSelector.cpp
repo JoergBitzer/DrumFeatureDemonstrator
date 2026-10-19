@@ -1,7 +1,5 @@
 #include "PatternSelector.h"
 
-#include "../src/StepParameters.h"
-
 namespace dfd
 {
 namespace
@@ -90,20 +88,7 @@ void PatternButton::paintButton(juce::Graphics& g, bool shouldDrawButtonAsHighli
 }
 
 // ---------------------------------------------------------------------------------------------- PatternSelector
-PatternSelector::PatternSelector(juce::AudioProcessorValueTreeState& apvts)
-    : m_editAttachment(*apvts.getParameter(editPatternParameterId()),
-                       [this](float value)
-                       {
-                           m_editPattern = juce::jlimit(0, kNumPatterns - 1, static_cast<int>(std::lround(value)) - 1);
-                           for (int index = 0; index < kNumPatterns; ++index)
-                           {
-                               m_editButtons[static_cast<std::size_t>(index)]->setLit(index == m_editPattern, true);
-                           }
-                           if (onEditPatternChanged)
-                           {
-                               onEditPatternChanged(m_editPattern);
-                           }
-                       })
+PatternSelector::PatternSelector(PatternData& data) : m_data(data)
 {
     for (int index = 0; index < kNumPatterns; ++index)
     {
@@ -112,8 +97,15 @@ PatternSelector::PatternSelector(juce::AudioProcessorValueTreeState& apvts)
         playButton->setClickingTogglesState(true);
         playButton->setTooltip("Play pattern " + number + ": the patterns that are on are played one after the other, from 1 to 4.");
         playButton->setFollowsToggleState(true);
-        m_playAttachments[static_cast<std::size_t>(index)] = std::make_unique<juce::AudioProcessorValueTreeState::ButtonAttachment>(
-            apvts, playPatternParameterId(index), *playButton);
+        PatternButton* playButtonPointer = playButton.get();
+        playButton->onClick = [this, index, playButtonPointer]()
+        {
+            m_data.setPlaying(index, playButtonPointer->getToggleState());
+            if (onPlaySwitchesEdited)
+            {
+                onPlaySwitchesEdited();
+            }
+        };
         addAndMakeVisible(*playButton);
         m_playButtons[static_cast<std::size_t>(index)] = std::move(playButton);
 
@@ -123,7 +115,16 @@ PatternSelector::PatternSelector(juce::AudioProcessorValueTreeState& apvts)
         addAndMakeVisible(*editButton);
         m_editButtons[static_cast<std::size_t>(index)] = std::move(editButton);
     }
-    m_editAttachment.sendInitialUpdate();
+    refresh();
+    m_editButtons[static_cast<std::size_t>(m_editPattern)]->setLit(true, true);
+}
+
+void PatternSelector::refresh()
+{
+    for (int index = 0; index < kNumPatterns; ++index)
+    {
+        m_playButtons[static_cast<std::size_t>(index)]->setToggleState(m_data.isPlaying(index), juce::dontSendNotification);
+    }
 }
 
 int PatternSelector::getEditPattern() const
@@ -133,7 +134,15 @@ int PatternSelector::getEditPattern() const
 
 void PatternSelector::setEditPatternValue(int patternIndex)
 {
-    m_editAttachment.setValueAsCompleteGesture(static_cast<float>(patternIndex + 1));
+    m_editPattern = juce::jlimit(0, kNumPatterns - 1, patternIndex);
+    for (int index = 0; index < kNumPatterns; ++index)
+    {
+        m_editButtons[static_cast<std::size_t>(index)]->setLit(index == m_editPattern, true);
+    }
+    if (onEditPatternChanged)
+    {
+        onEditPatternChanged(m_editPattern);
+    }
 }
 
 void PatternSelector::setPlayingPattern(int patternIndex)

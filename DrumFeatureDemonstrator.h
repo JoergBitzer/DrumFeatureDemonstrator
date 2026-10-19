@@ -9,7 +9,7 @@
 #include "src/SampleHolder.h"
 #include "src/VoiceBank.h"
 #include "src/Sequencer.h"
-#include "src/StepParameters.h"
+#include "src/PatternData.h"
 #include "src/NoteValues.h"
 #include "src/platform/XdndTarget.h"
 #include "gui/WaveformView.h"
@@ -204,13 +204,15 @@ public:
     // MIDI notes that arrived while the transport stood (step entry): the GUI applies them to the selected step
     bool popStepEntry(int& noteNumber, int& velocity);
     std::shared_ptr<const dfd::SampleData> getSampleForGui() const { return m_sampleHolder.getCurrentSampleForGui(); }
+    // the four patterns (not host parameters, saved as a blob in the state and in the presets)
+    dfd::PatternData& getPatternData() { return m_patternData; }
+    const dfd::PatternData& getPatternData() const { return m_patternData; }
 
 private:
     void readBank(dfd::PatternBank& bank) const;
     dfd::BlockTransport getBlockTransport(int numSamples, bool syncToHost);
     void addSequencerEvents(const dfd::SampleData& sample, int regionStart, int regionEnd);
     void updateInvalidSteps(const dfd::PatternBank& bank, const dfd::SampleRegion& region, double bpm);
-    float stepValue(int patternIndex, int stepIndex, dfd::StepParam param) const;
     void collectStepEntries(const juce::MidiBuffer& midiMessages);
     void addNoteEvents(const juce::MidiBuffer& midiMessages, const dfd::SampleData& sample, int regionStart, int regionEnd);
 
@@ -229,8 +231,7 @@ private:
     std::atomic<float>* m_syncToHost = nullptr;
     std::atomic<float>* m_internalBpm = nullptr;
     std::atomic<float>* m_internalPlay = nullptr;
-    std::array<std::atomic<float>*, dfd::kNumPatterns * dfd::kMaxSteps * dfd::kNumParamsPerStep> m_stepParameters{};
-    std::array<std::atomic<float>*, dfd::kNumPatterns> m_playPattern{};
+    dfd::PatternData m_patternData;
     dfd::PatternBank m_bank; // the patterns of the block being processed
     static constexpr int kStepEntryCapacity = 32;
     static constexpr int kVelocityShift = 8; // an entry holds note + velocity * 256
@@ -271,6 +272,7 @@ private:
     void startDropTargetIfNeeded();
     void fileDroppedOnHostWindow(const std::string& droppedText);
     void applyStepEntries();
+    void refreshPatternViews();
     void setParameterWithGesture(const juce::String& parameterId, float value);
     void showInfo(const juce::String& text);
     int currentPatternLength() const;
@@ -325,4 +327,5 @@ private:
     int m_noticeTicksLeft = 0;
     std::unique_ptr<dfd::XdndDropTarget> m_dropTarget; // Linux: file drops into a host window (see src/platform/XdndTarget.h)
     juce::String m_loadMessage; // message of the last failed load, shown in the sample label
+    unsigned m_shownPatternLoadCount = 0; // the load count of the PatternData that the grid shows (a preset load changes it)
 };

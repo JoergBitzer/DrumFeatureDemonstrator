@@ -16,7 +16,8 @@
 
 //==============================================================================
 class DrumFeatureDemonstratorAudioProcessorEditor  : public juce::AudioProcessorEditor,
-                                            private juce::AudioProcessorParameter::Listener
+                                            private juce::AudioProcessorParameter::Listener,
+                                            private juce::ValueTree::Listener
 {
 public:
     
@@ -35,6 +36,8 @@ private:
     // preset as changed. Gestures may arrive on any thread, hence the async hop.
     void parameterValueChanged(int, float) override {}
     void parameterGestureChanged(int parameterIndex, bool gestureIsStarting) override;
+    // the patterns are not parameters (no gestures): the processor writes them into the state when the user edits them
+    void valueTreePropertyChanged(juce::ValueTree& tree, const juce::Identifier& property) override;
 
 #if WITH_DAYNIGHT
     // Day/night theme (WITH_DAYNIGHT in CMakeLists.txt). Declared before all components, so the

@@ -111,42 +111,12 @@ void DrumFeatureDemonstratorAudio::addNoteEvents(const juce::MidiBuffer& midiMes
     }
 }
 
-float DrumFeatureDemonstratorAudio::stepValue(int patternIndex, int stepIndex, dfd::StepParam param) const
-{
-    const int stepSlot = (patternIndex * dfd::kMaxSteps + stepIndex) * dfd::kNumParamsPerStep + static_cast<int>(param);
-    return m_stepParameters[static_cast<std::size_t>(stepSlot)]->load();
-}
-
 void DrumFeatureDemonstratorAudio::readBank(dfd::PatternBank& bank) const
 {
     bank.numSteps = static_cast<int>(std::lround(m_patternLength->load()));
     bank.baseNote = static_cast<double>(m_baseNote->load());
     bank.stepLengthInBeats = dfd::noteValueLengthInBeats(static_cast<int>(std::lround(m_stepNoteValue->load())));
-    for (int patternIndex = 0; patternIndex < dfd::kNumPatterns; ++patternIndex)
-    {
-        bank.playing[static_cast<std::size_t>(patternIndex)] = m_playPattern[static_cast<std::size_t>(patternIndex)]->load() > kHalf;
-        for (int stepIndex = 0; stepIndex < dfd::kMaxSteps; ++stepIndex)
-        {
-            dfd::StepSettings& step = dfd::stepAt(bank, patternIndex, stepIndex);
-            step.active = stepValue(patternIndex, stepIndex, dfd::StepParam::Active) > kHalf;
-            step.noteNumber = static_cast<double>(stepValue(patternIndex, stepIndex, dfd::StepParam::Note));
-            step.velocity = stepValue(patternIndex, stepIndex, dfd::StepParam::Velocity);
-            step.pan = stepValue(patternIndex, stepIndex, dfd::StepParam::Pan);
-            const float mode = stepValue(patternIndex, stepIndex, dfd::StepParam::Mode);
-            if (mode > dfd::kModeReverse + kHalf)
-            {
-                step.mode = dfd::StepMode::ReverseToEnd;
-            }
-            else if (mode > dfd::kModeForward + kHalf)
-            {
-                step.mode = dfd::StepMode::Reverse;
-            }
-            else
-            {
-                step.mode = dfd::StepMode::Forward;
-            }
-        }
-    }
+    m_patternData.fillBank(bank);
 }
 
 dfd::BlockTransport DrumFeatureDemonstratorAudio::getBlockTransport(int numSamples, bool syncToHost)
@@ -309,23 +279,6 @@ void DrumFeatureDemonstratorAudio::addParameter(std::vector<std::unique_ptr<juce
     paramVector.push_back(jade::makeParameter(g_paramFadeIn));
     paramVector.push_back(jade::makeParameter(g_paramFadeOut));
     paramVector.push_back(jade::makeParameter(g_paramDeclick));
-    for (int patternIndex = 0; patternIndex < dfd::kNumPatterns; ++patternIndex)
-    {
-        paramVector.push_back(jade::makeParameter(dfd::playPatternParameterSpec(patternIndex)));
-    }
-    paramVector.push_back(jade::makeParameter(dfd::editPatternParameterSpec()));
-    for (int patternIndex = 0; patternIndex < dfd::kNumPatterns; ++patternIndex)
-    {
-        for (int stepIndex = 0; stepIndex < dfd::kMaxSteps; ++stepIndex)
-        {
-            for (int paramIndex = 0; paramIndex < dfd::kNumParamsPerStep; ++paramIndex)
-            {
-                const dfd::StepParam param = static_cast<dfd::StepParam>(paramIndex);
-                paramVector.push_back(jade::makeParameter(dfd::stepParameterSpec(patternIndex, stepIndex, param)));
-            }
-        }
-    }
-
 }
 
 void DrumFeatureDemonstratorAudio::prepareParameter(std::unique_ptr<juce::AudioProcessorValueTreeState> &vts)
@@ -340,26 +293,12 @@ void DrumFeatureDemonstratorAudio::prepareParameter(std::unique_ptr<juce::AudioP
     m_syncToHost = vts->getRawParameterValue(g_paramSyncToHost.ID);
     m_internalBpm = vts->getRawParameterValue(g_paramInternalBpm.ID);
     m_internalPlay = vts->getRawParameterValue(g_paramInternalPlay.ID);
-    for (int patternIndex = 0; patternIndex < dfd::kNumPatterns; ++patternIndex)
-    {
-        m_playPattern[static_cast<std::size_t>(patternIndex)] = vts->getRawParameterValue(dfd::playPatternParameterId(patternIndex));
-        for (int stepIndex = 0; stepIndex < dfd::kMaxSteps; ++stepIndex)
-        {
-            for (int paramIndex = 0; paramIndex < dfd::kNumParamsPerStep; ++paramIndex)
-            {
-                const dfd::StepParam param = static_cast<dfd::StepParam>(paramIndex);
-                const int stepSlot = (patternIndex * dfd::kMaxSteps + stepIndex) * dfd::kNumParamsPerStep + paramIndex;
-                m_stepParameters[static_cast<std::size_t>(stepSlot)] = vts->getRawParameterValue(dfd::stepParameterId(patternIndex, stepIndex, param));
-            }
-        }
-    }
 }
 
 
 namespace
 {
 constexpr int kTimerIntervalMs = 33;
-constexpr float kHalfValue = 0.5f;
 constexpr int kSkippedNoticeTicks = 90; // about 3 seconds
 constexpr float kRowFractionTop = 0.09f;
 constexpr float kRowFractionSecond = 0.09f;
@@ -396,8 +335,8 @@ DrumFeatureDemonstratorGUI::DrumFeatureDemonstratorGUI(DrumFeatureDemonstratorAu
 :m_processor(p) ,m_apvts(apvts),
  m_waveform(*apvts.getParameter(g_paramRegionStart.ID), *apvts.getParameter(g_paramRegionEnd.ID),
             *apvts.getParameter(g_paramFadeIn.ID), *apvts.getParameter(g_paramFadeOut.ID)),
- m_stepGrid(apvts),
- m_patternSelector(apvts),
+ m_stepGrid(p.m_algo.getPatternData()),
+ m_patternSelector(p.m_algo.getPatternData()),
  m_declickAttachment(apvts, g_paramDeclick.ID, m_declickButton),
  m_syncAttachment(apvts, g_paramSyncToHost.ID, m_syncButton),
  m_playAttachment(apvts, g_paramInternalPlay.ID, m_playButton),
@@ -464,6 +403,9 @@ DrumFeatureDemonstratorGUI::DrumFeatureDemonstratorGUI(DrumFeatureDemonstratorAu
     m_infoLabel.setText("Hover over or turn a control to see its value here. Cursor keys or a click select a step; MIDI notes set its note and velocity while the transport stands.", juce::dontSendNotification);
     addAndMakeVisible(m_infoLabel);
     m_stepGrid.onInfo = [this](const juce::String& text) { showInfo(text); };
+    m_stepGrid.onPatternDataEdited = [this]() { m_processor.commitPatternData(); };
+    m_patternSelector.onPlaySwitchesEdited = [this]() { m_processor.commitPatternData(); };
+    m_shownPatternLoadCount = m_processor.m_algo.getPatternData().getLoadCount();
 
     // the pattern buttons: the grid shows the edited pattern
     m_patternSelector.onEditPatternChanged = [this](int patternIndex) { m_stepGrid.setEditPattern(patternIndex); };
@@ -595,8 +537,7 @@ bool DrumFeatureDemonstratorGUI::anyPlayingPatternHasInvalidSteps() const
 {
     for (int patternIndex = 0; patternIndex < dfd::kNumPatterns; ++patternIndex)
     {
-        const std::atomic<float>* playFlag = m_apvts.getRawParameterValue(juce::String(dfd::playPatternParameterId(patternIndex)));
-        if (playFlag->load() > kHalfValue && m_processor.m_algo.getInvalidStepMask(patternIndex) != 0)
+        if (m_processor.m_algo.getPatternData().isPlaying(patternIndex) && m_processor.m_algo.getInvalidStepMask(patternIndex) != 0)
         {
             return true;
         }
@@ -654,6 +595,18 @@ void DrumFeatureDemonstratorGUI::setParameterWithGesture(const juce::String& par
     }
 }
 
+// a preset or a DAW state replaced the pattern data: the grid and the pattern buttons show the new values
+void DrumFeatureDemonstratorGUI::refreshPatternViews()
+{
+    const unsigned loadCount = m_processor.m_algo.getPatternData().getLoadCount();
+    if (loadCount != m_shownPatternLoadCount)
+    {
+        m_shownPatternLoadCount = loadCount;
+        m_stepGrid.refreshFromData();
+        m_patternSelector.refresh();
+    }
+}
+
 void DrumFeatureDemonstratorGUI::applyStepEntries()
 {
     int note = 0;
@@ -664,9 +617,12 @@ void DrumFeatureDemonstratorGUI::applyStepEntries()
         const int patternIndex = currentEditPattern();
         const float clampedNote = juce::jlimit(dfd::kMinStepNote, dfd::kMaxStepNote, static_cast<float>(note));
         const float clampedVelocity = juce::jlimit(dfd::kMinVelocity, dfd::kMaxVelocity, static_cast<float>(velocity));
-        setParameterWithGesture(juce::String(dfd::stepParameterId(patternIndex, stepIndex, dfd::StepParam::Active)), 1.0f);
-        setParameterWithGesture(juce::String(dfd::stepParameterId(patternIndex, stepIndex, dfd::StepParam::Note)), clampedNote);
-        setParameterWithGesture(juce::String(dfd::stepParameterId(patternIndex, stepIndex, dfd::StepParam::Velocity)), clampedVelocity);
+        dfd::PatternData& patternData = m_processor.m_algo.getPatternData();
+        patternData.setValue(patternIndex, stepIndex, dfd::StepParam::Active, 1.0f);
+        patternData.setValue(patternIndex, stepIndex, dfd::StepParam::Note, clampedNote);
+        patternData.setValue(patternIndex, stepIndex, dfd::StepParam::Velocity, clampedVelocity);
+        m_stepGrid.refreshFromData();
+        m_processor.commitPatternData();
         showInfo("Pattern " + juce::String(patternIndex + 1) + ", step " + juce::String(stepIndex + 1) + " set by MIDI: note " + juce::String(dfd::noteName(static_cast<int>(clampedNote)))
                  + ", velocity " + juce::String(static_cast<int>(clampedVelocity)));
     }
@@ -772,6 +728,7 @@ void DrumFeatureDemonstratorGUI::timerCallback()
         m_sampleLabel.setText(m_processor.getSampleName(), juce::dontSendNotification);
     }
     m_waveform.setDeclickEnabled(m_declickButton.getToggleState());
+    refreshPatternViews();
     const bool running = m_processor.m_algo.isTransportRunning();
     const int playingPattern = m_processor.m_algo.getCurrentPattern();
     int framedStep = -1;                        // yellow frame: nothing

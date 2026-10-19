@@ -2,23 +2,16 @@
 \hline
 Control & Range & Default & Description \\
 \hline
-Base note & 24 - 72 (C1 - C5) & 60 (C4) & MIDI note at which the sample plays at its original speed. \\
-Start & 0 - 1 & 0 & Start of the played region, as a fraction of the sample length (waveform handle). \\
-End & 0 - 1 & 1 & End of the played region (waveform handle). \\
-Pattern length & 8 - 32 steps & 16 & Number of steps of the pattern. \\
-Step note value & 1/1 - 1/64 (normal, dotted, triplet) & 1/16 & The note value that one step represents. \\
-Sync to host & off / on & on & On: follow the tempo and position of the DAW. Off: internal tempo and play button. \\
-Internal tempo & 40 - 240 bpm & 120 & Tempo of the internal beat. \\
-Internal play & pause / play & pause & Plays or pauses the internal beat (only without host sync). \\
-Fade in & 0 - 10 s & 0 & Fade-in time at the start of the played region (top handle at the start line). \\
-Fade out & 0 - 10 s & 0 & Fade-out time at the end of the played region (top handle at the end line). \\
-Play pattern $p$ & off / on & on for 1 & Plays this pattern; the patterns that are on are played one after the other from 1 to 4. \\
-Edit pattern & 1 - 4 & 1 & The pattern that the step grid shows and edits. \\
-Declick & off / on & off & Handles snap to a zero crossing of the sample when moved. \\
-Step $n$ on (each pattern) & off / on & off & Plays the sample on this step. \\
-Step $n$ mode & 0 / 1 / 2 & 0 & 0 forward, 1 reverse, 2 reverse and play to end. \\
-Step $n$ note & 12 - 108 (C0 - C8) & 60 (C4) & MIDI note of the step; the sample sounds at its original pitch when the note equals the base note. \\
-Step $n$ velocity & 1 - 127 & 100 & MIDI velocity of the step (volume = velocity / 127). \\
-Step $n$ pan & $-1$ - $1$ & 0 (centre) & Pan of the step: left, centre, right (balance: the centre keeps the full level). \\
+Base note & 24 - 72 & 60 & MIDI note at which the sample plays at its original speed (60 = C4); range C1 - C5. \\
+Start & 0.0000 - 1.0000 & 0.0000 & Start of the played region, as a fraction of the sample length. \\
+End & 0.0000 - 1.0000 & 1.0000 & End of the played region, as a fraction of the sample length. \\
+Pattern length & 8 steps - 32 steps & 16 steps & Number of 1/16 steps of the pattern (8 - 32). \\
+Step note value & 1/1 - 1/64 triplet & 1/16 & The note value that one step of the pattern represents: 1/1 to 1/64, each normal, dotted or as a triplet. \\
+Sync to host & 0 - 1 & 1 & 1 = follow the tempo and position of the DAW, 0 = internal tempo and play button. \\
+Internal tempo & 40.0 bpm - 240.0 bpm & 120.0 bpm & Tempo of the internal beat (used if Sync to host is off). \\
+Internal play & 0 - 1 & 0 & Plays (1) or pauses (0) the internal beat (used if Sync to host is off). \\
+Fade in & 0.000 s - 10.000 s & 0.000 s & Fade-in time at the start of the played region (the top handle at the start line of the waveform). \\
+Fade out & 0.000 s - 10.000 s & 0.000 s & Fade-out time at the end of the played region (the top handle at the end line of the waveform). \\
+Declick & 0 - 1 & 0 & If on, the start and end handles snap to a zero crossing of the sample when you move them (no click at the region edges). \\
 \hline
 \end{tabular}
