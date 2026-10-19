@@ -26,7 +26,8 @@
 \section{Introduction}
 DrumFeatureDemonstrator is a one-sample drum player with a step grid (1/16 notes, 8 to 32 steps). You load one
 sample (a drum hit, a cymbal, a reversed cymbal), choose the steps on which it is played, and change pitch,
-direction and loudness per step. The sample is also played from MIDI notes.
+direction, loudness, pan and the number of repeats (ratchets) per step. There are four patterns that can be played one after the other,
+tools to copy, shift and clear a pattern, and a library of typical patterns. The sample is also played from MIDI notes.
 
 The new thing is \textbf{play to end}. The plug-in knows exactly how long the sample sounds at the chosen
 pitch. A step in the mode \emph{reverse + play to end} is therefore started early, so that the sample
@@ -142,6 +143,16 @@ For a step in the mode reverse + play to end the plug-in computes the \emph{dura
 with the number of samples $N$ of the played region, the pitch $p$ in semitones (the note of the step minus the base note) and the two sample rates. The start
 time is the end of the step minus $d$. Because $d$ is at most one pattern long, the start lies at most one pattern pass before
 the step, so the plug-in looks ahead one pass. The resampling is done by linear interpolation; pitch and duration change together.
+
+\emph{Repeats.} A step with $n$ repeats (1 to 8) plays the sample $n$ times. With the ramp $\rho$ ($-1$ to $1$) the hit $k$ ($k = 0, \dots, n-1$) starts at the fraction
+\[
+  t_k = \left(\frac{k}{n}\right)^{2^{-1.5\,\rho}}
+\]
+of the step: $\rho = 0$ spaces the hits evenly, $\rho > 0$ makes them speed up, $\rho < 0$ slow down. With reverse + play to end every hit ends where the next one starts
+(the last one at the end of the step), so its start time is that end minus $d$.
+
+\emph{Fade curves.} The gain of a fade is $x^{p}$ with the linear progress $x$ from 0 to 1 and $p = 2^{-2s}$ for the shape $s$ ($-1$ to $1$): $s = 0$ is linear,
+$s < 0$ exponential (slow start), $s > 0$ anti-exponential (fast start).
 
 The drum samples used for the examples and tests come from MusicRadar (SampleRadar, free and royalty-free):
 \url{https://www.musicradar.com/news/tech/free-music-samples-royalty-free-loops-hits-and-multis-to-download-sampleradar}.

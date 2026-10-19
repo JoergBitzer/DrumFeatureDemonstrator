@@ -46,11 +46,17 @@ and press Play (or the space key) for the internal beat.
    clear and shift the pattern, undo, and open a library of typical patterns (BD, SD, HH, Perc, Chromatic).
    "Step" chooses the note value of one step (1/1 to 1/64, dotted, triplet). In the last mode the sample ends exactly at the end of that step: put it on the
    last step before a beat to lead into the beat with a reversed cymbal.
+   In the waveform, drag the small squares at the top for the fade in and fade out time, and the circle in the middle of each fade line
+   to bend the fade from exponential through linear to anti-exponential (double-click: linear).
 3. Four patterns: the "Play" buttons switch patterns on or off (they play one after the other, 1 to 4),
    the "Edit" buttons choose the pattern that the grid shows; a yellow frame marks the pattern that plays.
 4. "Host sync" on: the plugin plays when your DAW plays. Off: own tempo and Play button.
 5. Cursor keys or a click select a step (yellow frame) while nothing plays; MIDI notes then set its note
    and velocity.
+
+Update from a version before 0.13: the patterns are no longer host parameters but data saved with the preset or the project (only the
+base note, start, end, fades and internal tempo can be automated), so presets and projects of older versions do not restore their steps.
+The factory presets are replaced by the new ones.
 
 At the first start, the factory presets are copied to your preset folder (plain XML files). Your loaded
 samples are copied into the folder "Samples" there; a DAW project contains its sample itself:
