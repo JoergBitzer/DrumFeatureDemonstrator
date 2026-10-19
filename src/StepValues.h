@@ -44,4 +44,27 @@ struct StepValueSpec
 };
 
 StepValueSpec stepValueSpec(StepParam param);
+
+// the settings that belong to the patterns and are saved with them (also not host parameters): the number of steps, the note value
+// of a step, whether the host or the internal clock plays, and whether the waveform handles snap to zero crossings
+enum class PatternSetting
+{
+    Length,
+    NoteValue,
+    SyncToHost,
+    Declick
+};
+
+constexpr int kNumPatternSettings = 4;
+
+struct PatternSettingSpec
+{
+    std::string name;
+    float minValue = 0.0f;
+    float maxValue = 1.0f;
+    float defaultValue = 0.0f;
+    std::string help;
+};
+
+PatternSettingSpec patternSettingSpec(PatternSetting setting);
 } // namespace dfd

@@ -10,9 +10,10 @@ namespace
 {
 constexpr std::size_t kMagicSize = 4;
 constexpr std::uint8_t kMagic[kMagicSize] = {'D', 'F', 'D', 'P'};
-constexpr std::uint8_t kFormatVersion = 1;
-constexpr std::size_t kHeaderSize = kMagicSize + 4; // magic, version, number of patterns, number of steps, play mask
+constexpr std::uint8_t kFormatVersion = 2;
 constexpr std::size_t kBytesPerValue = 4;
+constexpr std::size_t kFixedHeaderSize = kMagicSize + 4; // magic, version, number of patterns, number of steps, play mask
+constexpr std::size_t kHeaderSize = kFixedHeaderSize + kNumPatternSettings * kBytesPerValue; // and the settings
 constexpr std::size_t kNumValues = static_cast<std::size_t>(kNumPatterns) * kMaxSteps * kNumValuesPerStep;
 constexpr std::size_t kBlobSize = kHeaderSize + kNumValues * kBytesPerValue;
 constexpr int kBitsPerByte = 8;
@@ -85,6 +86,26 @@ float PatternData::limitedValue(StepParam param, float value)
     return limited;
 }
 
+float PatternData::limitedSetting(PatternSetting setting, float value)
+{
+    const PatternSettingSpec spec = patternSettingSpec(setting);
+    if (std::isnan(value))
+    {
+        return spec.defaultValue;
+    }
+    return std::round(std::clamp(value, spec.minValue, spec.maxValue));
+}
+
+float PatternData::getSetting(PatternSetting setting) const
+{
+    return m_settings[static_cast<std::size_t>(setting)].load();
+}
+
+void PatternData::setSetting(PatternSetting setting, float value)
+{
+    m_settings[static_cast<std::size_t>(setting)].store(limitedSetting(setting, value));
+}
+
 float PatternData::getValue(int patternIndex, int stepIndex, StepParam param) const
 {
     return m_values[valueSlot(patternIndex, stepIndex, param)].load();
@@ -118,6 +139,11 @@ void PatternData::resetToDefaults()
             }
         }
         setPlaying(patternIndex, patternIndex == 0);
+    }
+    for (int settingIndex = 0; settingIndex < kNumPatternSettings; ++settingIndex)
+    {
+        const PatternSetting setting = static_cast<PatternSetting>(settingIndex);
+        setSetting(setting, patternSettingSpec(setting).defaultValue);
     }
     ++m_loadCount;
 }
@@ -156,6 +182,10 @@ std::vector<std::uint8_t> PatternData::toBytes() const
         }
     }
     bytes.push_back(playMask);
+    for (const std::atomic<float>& setting : m_settings)
+    {
+        writeFloat(bytes, setting.load());
+    }
     for (const std::atomic<float>& value : m_values)
     {
         writeFloat(bytes, value.load());
@@ -182,6 +212,12 @@ bool PatternData::fromBytes(const std::uint8_t* bytes, std::size_t numBytes)
     for (int patternIndex = 0; patternIndex < kNumPatterns; ++patternIndex)
     {
         setPlaying(patternIndex, (playMask & (1u << patternIndex)) != 0);
+    }
+    const std::uint8_t* settingBytes = bytes + kFixedHeaderSize;
+    for (int settingIndex = 0; settingIndex < kNumPatternSettings; ++settingIndex)
+    {
+        setSetting(static_cast<PatternSetting>(settingIndex), readFloat(settingBytes));
+        settingBytes += kBytesPerValue;
     }
     const std::uint8_t* valueBytes = bytes + kHeaderSize;
     for (int patternIndex = 0; patternIndex < kNumPatterns; ++patternIndex)

@@ -14,7 +14,8 @@
     Options:
       --preset <file.xml>   load a preset (as saved by the preset handler)
       --set <id>=<value>    set a parameter to a value in its own unit, e.g. --set ExampleID=1.5
-                            (repeatable; "--list" shows all parameter IDs)
+                            (repeatable; "--list" shows all parameter IDs; names that are no parameters
+                            are asked of the processor, e.g. SyncToHost, InternalPlay of the DrumFeatureDemonstrator)
       --audio <in.wav>      snapshot: play this file through the plugin first (meters etc.)
       --seconds <s>         snapshot: how long to play/wait before the snapshot (default 1)
       --blocksize <n>       block size (default 512)
@@ -31,7 +32,7 @@
       --keys <list>         snapshot: send keys to the window after the notes: left,right,up,down,home,end,space (comma separated); afterwards 0.5 s are played
       --drop <file>         snapshot: simulate dropping this file onto the window (at the given --drop-at position) before the snapshot
       --drop-at <x,y>       position of the simulated drop as fractions of the window size (default 0.5,0.3)
-      --list                print all parameters (ID, name, range, default) and exit
+      --list                print all parameters (ID, name, range, default) and the named settings that are no parameters, and exit
       --manual <md|tex>     print the list of controls as a Markdown or LaTeX table and exit
                             (range and default as the plugin shows them, description = the
                             parameter's "help" line, see tools/ParameterSpec.h)
@@ -48,6 +49,7 @@
 #include <vector>
 #include "../ParameterSpec.h"
 #include "../../src/SampleLoadable.h" // --sample: any processor that can load a sample
+#include "../../src/NamedValueSettable.h" // --set: settings that are no host parameters
 
 // createPluginFilter() (declared by JUCE, defined in PluginProcessor.cpp) is the same function
 // a DAW calls to create the plugin, so this tool needs no plugin-specific names.
@@ -102,6 +104,9 @@ void listParameters(juce::AudioProcessor& processor)
                       << range.start << " .. " << range.end << "  default "
                       << range.convertFrom0to1(ranged->getDefaultValue()) << "\n";
         }
+    if (auto* namedValues = dynamic_cast<dfd::NamedValueSettable*>(&processor))
+        for (const auto& line : namedValues->describeNamedValues())
+            std::cout << line << "\n";
 }
 
 juce::String texEscape(const juce::String& t)
@@ -287,13 +292,21 @@ int main(int argc, char* argv[])
     }
     for (const auto& s : settings)
     {
-        auto* p = findParameter(*processor, s.upToFirstOccurrenceOf("=", false, false));
-        if (p == nullptr || !s.contains("="))
+        const juce::String id = s.upToFirstOccurrenceOf("=", false, false);
+        const float value = s.fromFirstOccurrenceOf("=", false, false).getFloatValue();
+        auto* p = findParameter(*processor, id);
+        if (p != nullptr && s.contains("="))
+        {
+            p->setValueNotifyingHost(p->convertTo0to1(value));
+            continue;
+        }
+        // not a host parameter: a processor can offer settings by name (they are saved with the patterns)
+        auto* namedValues = dynamic_cast<dfd::NamedValueSettable*>(processor.get());
+        if (namedValues == nullptr || !s.contains("=") || !namedValues->setNamedValue(id, value))
         {
             std::cout << "Unknown parameter in --set " << s << " (see --list)\n";
             return 1;
         }
-        p->setValueNotifyingHost(p->convertTo0to1(s.fromFirstOccurrenceOf("=", false, false).getFloatValue()));
     }
 
     // audio

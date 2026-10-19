@@ -113,9 +113,9 @@ void DrumFeatureDemonstratorAudio::addNoteEvents(const juce::MidiBuffer& midiMes
 
 void DrumFeatureDemonstratorAudio::readBank(dfd::PatternBank& bank) const
 {
-    bank.numSteps = static_cast<int>(std::lround(m_patternLength->load()));
+    bank.numSteps = static_cast<int>(std::lround(m_patternData.getSetting(dfd::PatternSetting::Length)));
     bank.baseNote = static_cast<double>(m_baseNote->load());
-    bank.stepLengthInBeats = dfd::noteValueLengthInBeats(static_cast<int>(std::lround(m_stepNoteValue->load())));
+    bank.stepLengthInBeats = dfd::noteValueLengthInBeats(static_cast<int>(std::lround(m_patternData.getSetting(dfd::PatternSetting::NoteValue))));
     m_patternData.fillBank(bank);
 }
 
@@ -149,7 +149,7 @@ dfd::BlockTransport DrumFeatureDemonstratorAudio::getBlockTransport(int numSampl
         return transport;
     }
     m_internalClock.setBpm(static_cast<double>(m_internalBpm->load()));
-    m_internalClock.setPlaying(m_internalPlay->load() > kHalf);
+    m_internalClock.setPlaying(m_internalPlay.load());
     transport = m_internalClock.getTransport();
     m_internalClock.advance(numSamples, m_hostSampleRate);
     return transport;
@@ -231,7 +231,7 @@ int DrumFeatureDemonstratorAudio::processSynchronBlock(juce::AudioBuffer<float> 
         }
     }
 
-    const bool syncToHost = m_syncToHost->load() > kHalf;
+    const bool syncToHost = m_patternData.getSetting(dfd::PatternSetting::SyncToHost) > kHalf;
     const dfd::BlockTransport transport = getBlockTransport(buffer.getNumSamples(), syncToHost);
     dfd::SequencerResult result;
     m_sequencer.process(m_bank, region, m_hostSampleRate, transport, buffer.getNumSamples(), m_soundStarts, result);
@@ -265,20 +265,9 @@ void DrumFeatureDemonstratorAudio::addParameter(std::vector<std::unique_ptr<juce
     paramVector.push_back(jade::makeParameter(g_paramBaseNote));
     paramVector.push_back(jade::makeParameter(g_paramRegionStart));
     paramVector.push_back(jade::makeParameter(g_paramRegionEnd));
-    paramVector.push_back(jade::makeParameter(g_paramPatternLength));
-    juce::StringArray noteValueNames;
-    for (int index = 0; index < dfd::kNumNoteValues; ++index)
-    {
-        noteValueNames.add(juce::String(dfd::noteValueName(index)));
-    }
-    paramVector.push_back(std::make_unique<juce::AudioParameterChoice>(juce::ParameterID{g_stepNoteValueId, 1}, "Step note value", noteValueNames, dfd::kDefaultNoteValueIndex));
-    jade::parameterHelpTexts()[g_stepNoteValueId] = "The note value that one step of the pattern represents: 1/1 to 1/64, each normal, dotted or as a triplet.";
-    paramVector.push_back(jade::makeParameter(g_paramSyncToHost));
     paramVector.push_back(jade::makeParameter(g_paramInternalBpm));
-    paramVector.push_back(jade::makeParameter(g_paramInternalPlay));
     paramVector.push_back(jade::makeParameter(g_paramFadeIn));
     paramVector.push_back(jade::makeParameter(g_paramFadeOut));
-    paramVector.push_back(jade::makeParameter(g_paramDeclick));
 }
 
 void DrumFeatureDemonstratorAudio::prepareParameter(std::unique_ptr<juce::AudioProcessorValueTreeState> &vts)
@@ -288,11 +277,7 @@ void DrumFeatureDemonstratorAudio::prepareParameter(std::unique_ptr<juce::AudioP
     m_regionEnd = vts->getRawParameterValue(g_paramRegionEnd.ID);
     m_fadeIn = vts->getRawParameterValue(g_paramFadeIn.ID);
     m_fadeOut = vts->getRawParameterValue(g_paramFadeOut.ID);
-    m_patternLength = vts->getRawParameterValue(g_paramPatternLength.ID);
-    m_stepNoteValue = vts->getRawParameterValue(g_stepNoteValueId);
-    m_syncToHost = vts->getRawParameterValue(g_paramSyncToHost.ID);
     m_internalBpm = vts->getRawParameterValue(g_paramInternalBpm.ID);
-    m_internalPlay = vts->getRawParameterValue(g_paramInternalPlay.ID);
 }
 
 
@@ -324,6 +309,16 @@ void setupLabel(juce::Label& label, const juce::String& text)
     label.setJustificationType(juce::Justification::centredRight);
 }
 
+// 1 if the button is switched on, 0 if not (the value of an on/off setting)
+float switchValue(const juce::Button& button)
+{
+    if (button.getToggleState())
+    {
+        return 1.0f;
+    }
+    return 0.0f;
+}
+
 void setupBarSlider(juce::Slider& slider)
 {
     slider.setSliderStyle(juce::Slider::LinearBar);
@@ -337,12 +332,7 @@ DrumFeatureDemonstratorGUI::DrumFeatureDemonstratorGUI(DrumFeatureDemonstratorAu
             *apvts.getParameter(g_paramFadeIn.ID), *apvts.getParameter(g_paramFadeOut.ID)),
  m_stepGrid(p.m_algo.getPatternData()),
  m_patternSelector(p.m_algo.getPatternData()),
- m_declickAttachment(apvts, g_paramDeclick.ID, m_declickButton),
- m_syncAttachment(apvts, g_paramSyncToHost.ID, m_syncButton),
- m_playAttachment(apvts, g_paramInternalPlay.ID, m_playButton),
  m_baseNoteAttachment(apvts, g_paramBaseNote.ID, m_baseNoteSlider),
- m_lengthAttachment(apvts, g_paramPatternLength.ID, m_lengthSlider),
- m_stepValueAttachment(apvts, g_stepNoteValueId, m_stepValueCombo),
  m_bpmAttachment(apvts, g_paramInternalBpm.ID, m_bpmSlider)
 {
     m_loadButton.setButtonText("Load sample");
@@ -354,7 +344,8 @@ DrumFeatureDemonstratorGUI::DrumFeatureDemonstratorGUI(DrumFeatureDemonstratorAu
     addAndMakeVisible(m_sampleLabel);
 
     m_declickButton.setButtonText("Declick");
-    m_declickButton.setTooltip(jade::helpText(g_paramDeclick));
+    m_declickButton.setTooltip(dfd::patternSettingSpec(dfd::PatternSetting::Declick).help);
+    m_declickButton.onClick = [this]() { setPatternSetting(dfd::PatternSetting::Declick, switchValue(m_declickButton)); };
     addAndMakeVisible(m_declickButton);
 
     setupLabel(m_baseNoteLabel, "Base note");
@@ -367,7 +358,10 @@ DrumFeatureDemonstratorGUI::DrumFeatureDemonstratorGUI(DrumFeatureDemonstratorAu
 
     setupLabel(m_lengthLabel, "Pattern");
     setupBarSlider(m_lengthSlider);
-    m_lengthSlider.setTooltip(jade::helpText(g_paramPatternLength));
+    m_lengthSlider.setTooltip(dfd::patternSettingSpec(dfd::PatternSetting::Length).help);
+    m_lengthSlider.setRange(static_cast<double>(dfd::kMinSteps), static_cast<double>(dfd::kMaxSteps), 1.0);
+    m_lengthSlider.setTextValueSuffix(" steps");
+    m_lengthSlider.onValueChange = [this]() { setPatternSetting(dfd::PatternSetting::Length, static_cast<float>(m_lengthSlider.getValue())); };
     addAndMakeVisible(m_lengthLabel);
     addAndMakeVisible(m_lengthSlider);
 
@@ -376,19 +370,19 @@ DrumFeatureDemonstratorGUI::DrumFeatureDemonstratorGUI(DrumFeatureDemonstratorAu
     {
         m_stepValueCombo.addItem(juce::String(dfd::noteValueName(index)), index + 1);
     }
-    // the attachment was made before the items existed: show the current value of the parameter
-    const int currentNoteValue = static_cast<int>(std::lround(m_apvts.getRawParameterValue(g_stepNoteValueId)->load()));
-    m_stepValueCombo.setSelectedItemIndex(dfd::clampedNoteValueIndex(currentNoteValue), juce::dontSendNotification);
-    m_stepValueCombo.setTooltip("The note value of one step: 1/1 to 1/64, normal, dotted or as a triplet.");
+    m_stepValueCombo.setTooltip(dfd::patternSettingSpec(dfd::PatternSetting::NoteValue).help);
+    m_stepValueCombo.onChange = [this]() { setPatternSetting(dfd::PatternSetting::NoteValue, static_cast<float>(m_stepValueCombo.getSelectedItemIndex())); };
     addAndMakeVisible(m_stepValueLabel);
     addAndMakeVisible(m_stepValueCombo);
 
     m_syncButton.setClickingTogglesState(true);
-    m_syncButton.setTooltip(jade::helpText(g_paramSyncToHost));
+    m_syncButton.setTooltip(dfd::patternSettingSpec(dfd::PatternSetting::SyncToHost).help);
+    m_syncButton.onClick = [this]() { setPatternSetting(dfd::PatternSetting::SyncToHost, switchValue(m_syncButton)); };
     addAndMakeVisible(m_syncButton);
 
     m_playButton.setClickingTogglesState(true);
-    m_playButton.setTooltip(jade::helpText(g_paramInternalPlay));
+    m_playButton.setTooltip("Plays (on) or pauses (off) the internal beat (used if Host sync is off). The space key does the same.");
+    m_playButton.onClick = [this]() { m_processor.m_algo.setInternalPlay(m_playButton.getToggleState()); };
     addAndMakeVisible(m_playButton);
 
     setupLabel(m_tempoLabel, "Tempo");
@@ -405,7 +399,7 @@ DrumFeatureDemonstratorGUI::DrumFeatureDemonstratorGUI(DrumFeatureDemonstratorAu
     m_stepGrid.onInfo = [this](const juce::String& text) { showInfo(text); };
     m_stepGrid.onPatternDataEdited = [this]() { m_processor.commitPatternData(); };
     m_patternSelector.onPlaySwitchesEdited = [this]() { m_processor.commitPatternData(); };
-    m_shownPatternLoadCount = m_processor.m_algo.getPatternData().getLoadCount();
+    showPatternSettings();
 
     // the pattern buttons: the grid shows the edited pattern
     m_patternSelector.onEditPatternChanged = [this](int patternIndex) { m_stepGrid.setEditPattern(patternIndex); };
@@ -585,25 +579,33 @@ int DrumFeatureDemonstratorGUI::currentPatternLength() const
     return static_cast<int>(std::lround(m_lengthSlider.getValue()));
 }
 
-void DrumFeatureDemonstratorGUI::setParameterWithGesture(const juce::String& parameterId, float value)
+// the controls show the settings of the PatternData (without sending a change back)
+void DrumFeatureDemonstratorGUI::showPatternSettings()
 {
-    if (juce::RangedAudioParameter* parameter = m_apvts.getParameter(parameterId))
-    {
-        parameter->beginChangeGesture();
-        parameter->setValueNotifyingHost(parameter->convertTo0to1(value));
-        parameter->endChangeGesture();
-    }
+    const dfd::PatternData& patternData = m_processor.m_algo.getPatternData();
+    m_shownPatternLoadCount = patternData.getLoadCount();
+    m_lengthSlider.setValue(static_cast<double>(patternData.getSetting(dfd::PatternSetting::Length)), juce::dontSendNotification);
+    const int noteValueIndex = static_cast<int>(std::lround(patternData.getSetting(dfd::PatternSetting::NoteValue)));
+    m_stepValueCombo.setSelectedItemIndex(dfd::clampedNoteValueIndex(noteValueIndex), juce::dontSendNotification);
+    m_syncButton.setToggleState(patternData.getSetting(dfd::PatternSetting::SyncToHost) > kHalf, juce::dontSendNotification);
+    m_declickButton.setToggleState(patternData.getSetting(dfd::PatternSetting::Declick) > kHalf, juce::dontSendNotification);
 }
 
-// a preset or a DAW state replaced the pattern data: the grid and the pattern buttons show the new values
+void DrumFeatureDemonstratorGUI::setPatternSetting(dfd::PatternSetting setting, float value)
+{
+    m_processor.m_algo.getPatternData().setSetting(setting, value);
+    m_processor.commitPatternData();
+}
+
+// a preset or a DAW state replaced the pattern data: the grid, the pattern buttons and the settings show the new values
 void DrumFeatureDemonstratorGUI::refreshPatternViews()
 {
     const unsigned loadCount = m_processor.m_algo.getPatternData().getLoadCount();
     if (loadCount != m_shownPatternLoadCount)
     {
-        m_shownPatternLoadCount = loadCount;
         m_stepGrid.refreshFromData();
         m_patternSelector.refresh();
+        showPatternSettings();
     }
 }
 
@@ -635,13 +637,9 @@ bool DrumFeatureDemonstratorGUI::toggleInternalPlayer()
         showInfo("The space key starts the internal player; it is off while Host sync is on (the DAW plays).");
         return false; // the host may use the space key itself
     }
-    const bool isPlaying = m_playButton.getToggleState();
-    float newValue = 1.0f;
-    if (isPlaying)
-    {
-        newValue = 0.0f;
-    }
-    setParameterWithGesture(juce::String(g_paramInternalPlay.ID), newValue);
+    const bool isPlaying = m_processor.m_algo.isInternalPlay();
+    m_processor.m_algo.setInternalPlay(isPlaying == false);
+    m_playButton.setToggleState(isPlaying == false, juce::dontSendNotification);
     if (isPlaying)
     {
         showInfo("Internal player paused");

@@ -5,9 +5,10 @@
 #include "tools/PresetHandler.h"
 #include "DrumFeatureDemonstrator.h"
 #include "src/SampleLoadable.h"
+#include "src/NamedValueSettable.h"
 
 //==============================================================================
-class DrumFeatureDemonstratorAudioProcessor  : public juce::AudioProcessor, public dfd::SampleLoadable,
+class DrumFeatureDemonstratorAudioProcessor  : public juce::AudioProcessor, public dfd::SampleLoadable, public dfd::NamedValueSettable,
                                                private juce::ValueTree::Listener, private juce::AsyncUpdater
 {
 public:
@@ -54,6 +55,10 @@ public:
     // message thread: reads the sample file and hands it to the audio thread; false if it cannot be read
     bool loadSample(const juce::File& file) override;
     juce::String getSampleName() const override;
+
+    // the settings that are not host parameters, by name (for the Tester): PatternLength, StepNoteValue, SyncToHost, Declick, InternalPlay
+    bool setNamedValue(const juce::String& name, float value) override;
+    juce::StringArray describeNamedValues() const override;
 
     // the folder the last sample came from (kept in user.settings), the start folder of the file dialog
     juce::File getLastSampleFolder();

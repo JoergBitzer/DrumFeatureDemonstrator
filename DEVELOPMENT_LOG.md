@@ -251,3 +251,14 @@ Checks:
 - Sound: every factory preset rendered before (0.12.1) and after (0.13.0) with the Tester (internal clock, 8 s): 5 of 7 files are bit-identical; Four patterns and Triplets differ by at most 1.2e-7 (their pan values, e.g. 0.4, used to go through the normalised parameter range and are now stored as the float itself).
 - State round trip: `--preset Four_patterns.xml --save-state`, then `--load-state` renders identically to the preset render.
 - GUI (virtual display): the grid shows the preset; a click on a bar changes the note and turns the Save button red.
+
+## Round 11: parameter redesign, step 2: settings that are not parameters (0.13.1)
+
+Agreed list: only the base note, start, end, fade in, fade out and the internal tempo stay host parameters (6 of 11). Pattern length, step note value, Host sync and Declick move into the saved pattern data; Internal play becomes a runtime switch that is not saved (a project starts stopped; before, pressing play also marked the preset as changed).
+
+- `PatternData` got four settings (`PatternSetting`: length, note value, sync to host, declick; integer values, limited and rounded); the blob is version 2 (header, play mask, 4 settings, values; layout in `src/PatternData.h`). Factory presets: version 7 (blob v2).
+- `DrumFeatureDemonstratorAudio::setInternalPlay / isInternalPlay` (atomic bool, not saved). The audio code reads the settings from the `PatternData` (no more raw parameter pointers for them).
+- GUI: slider, combo box and buttons call `setPatternSetting` (PatternData + `commitPatternData`, so the Save button turns red and presets / projects keep it); a preset load is shown by `showPatternSettings` (same load count as the grid). The space key and the Play button set the internal play switch.
+- Tester: `--set` falls back to the new interface `src/NamedValueSettable.h` for names that are no parameters (`--set SyncToHost=0 --set InternalPlay=1`, also `PatternLength`, `StepNoteValue`, `Declick`); `--list` prints them after the parameters.
+- Template leftovers removed: `g_paramExample`, the parameter help-text entry of the note value, `setParameterWithGesture`.
+- Checks: unit tests (settings: defaults, limits, rounding, blob round trip, layout, version 2) pass; the seven factory presets render bit-identical to 0.13.0; the GUI shows a loaded preset's length, note value and sync state (snapshot); pluginval Debug 3 of 3.

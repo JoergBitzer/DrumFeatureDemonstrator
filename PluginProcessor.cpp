@@ -348,6 +348,55 @@ juce::String DrumFeatureDemonstratorAudioProcessor::getSampleName() const
     return m_sampleName;
 }
 
+namespace
+{
+const char* const kInternalPlayName = "InternalPlay";
+constexpr float kSwitchThreshold = 0.5f;
+
+struct NamedSetting
+{
+    const char* name;
+    dfd::PatternSetting setting;
+};
+
+const NamedSetting kNamedSettings[] = {{"PatternLength", dfd::PatternSetting::Length},
+                                       {"StepNoteValue", dfd::PatternSetting::NoteValue},
+                                       {"SyncToHost", dfd::PatternSetting::SyncToHost},
+                                       {"Declick", dfd::PatternSetting::Declick}};
+} // namespace
+
+bool DrumFeatureDemonstratorAudioProcessor::setNamedValue(const juce::String& name, float value)
+{
+    if (name == kInternalPlayName)
+    {
+        m_algo.setInternalPlay(value > kSwitchThreshold);
+        return true;
+    }
+    for (const NamedSetting& named : kNamedSettings)
+    {
+        if (name == named.name)
+        {
+            m_algo.getPatternData().setSetting(named.setting, value);
+            commitPatternData();
+            return true;
+        }
+    }
+    return false;
+}
+
+juce::StringArray DrumFeatureDemonstratorAudioProcessor::describeNamedValues() const
+{
+    juce::StringArray lines;
+    for (const NamedSetting& named : kNamedSettings)
+    {
+        const dfd::PatternSettingSpec spec = dfd::patternSettingSpec(named.setting);
+        lines.add(juce::String(named.name) + "  \"" + spec.name + "\"  " + juce::String(spec.minValue) + " .. " + juce::String(spec.maxValue)
+                  + "  default " + juce::String(spec.defaultValue) + "  (saved with the patterns, not a host parameter)");
+    }
+    lines.add(juce::String(kInternalPlayName) + "  \"Internal play\"  0 .. 1  default 0  (not saved, not a host parameter)");
+    return lines;
+}
+
 //==============================================================================
 bool DrumFeatureDemonstratorAudioProcessor::hasEditor() const
 {

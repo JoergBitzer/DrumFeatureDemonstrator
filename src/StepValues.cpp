@@ -1,5 +1,8 @@
 #include "StepValues.h"
 
+#include "NoteValues.h"
+#include "StepScheduler.h"
+
 namespace dfd
 {
 StepValueSpec stepValueSpec(StepParam param)
@@ -44,6 +47,43 @@ StepValueSpec stepValueSpec(StepParam param)
         spec.defaultValue = kCentrePan;
         spec.numDecimalPlaces = 2;
         spec.help = "Pan of this step: -1 = left, 0 = centre, 1 = right (balance: the centre keeps the full level of both channels).";
+        break;
+    }
+    return spec;
+}
+
+PatternSettingSpec patternSettingSpec(PatternSetting setting)
+{
+    PatternSettingSpec spec;
+    switch (setting)
+    {
+    case PatternSetting::Length:
+        spec.name = "Pattern length";
+        spec.minValue = static_cast<float>(kMinSteps);
+        spec.maxValue = static_cast<float>(kMaxSteps);
+        spec.defaultValue = static_cast<float>(kDefaultSteps);
+        spec.help = "Number of steps of the pattern (8 - 32); the same for all four patterns.";
+        break;
+    case PatternSetting::NoteValue:
+        spec.name = "Step note value";
+        spec.minValue = 0.0f;
+        spec.maxValue = static_cast<float>(kNumNoteValues - 1);
+        spec.defaultValue = static_cast<float>(kDefaultNoteValueIndex);
+        spec.help = "The note value that one step of the pattern represents: 1/1 to 1/64, each normal, dotted or as a triplet.";
+        break;
+    case PatternSetting::SyncToHost:
+        spec.name = "Sync to host";
+        spec.minValue = 0.0f;
+        spec.maxValue = 1.0f;
+        spec.defaultValue = 1.0f;
+        spec.help = "1 = follow the tempo and position of the DAW, 0 = internal tempo and play button.";
+        break;
+    case PatternSetting::Declick:
+        spec.name = "Declick";
+        spec.minValue = 0.0f;
+        spec.maxValue = 1.0f;
+        spec.defaultValue = 0.0f;
+        spec.help = "If on, the start and end handles snap to a zero crossing of the sample when you move them (no click at the region edges).";
         break;
     }
     return spec;
