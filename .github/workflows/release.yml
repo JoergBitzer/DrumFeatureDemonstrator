@@ -166,6 +166,12 @@ jobs:
           Each zip contains the VST3 plugin and the Standalone application (macOS also the AU plugin),
           the manual, a ReadMeFirst.txt and the license files (source code: MIT; binaries: AGPLv3, because of JUCE).
 
+          **New since 0.10.0:** four patterns that play one after the other, a note value per step (1/1 to 1/64, dotted, triplet),
+          one button per step with four states, bars to draw note, velocity, pan, repeat (ratchets, 1 - 8 hits) and ramp
+          (speeding up or slowing down) with the mouse, pattern tools (copy, paste, clear, shift, undo) and a pattern library
+          (BD, SD, HH, Perc, Chromatic), fade curves from exponential to anti-exponential, the patterns saved as data
+          (only six host parameters are left; presets of older versions do not restore their steps), a small version display.
+
           **Installation:** copy the plugin into the standard folder of your system
           (Windows: `C:\Program Files\Common Files\VST3`, macOS: `~/Library/Audio/Plug-Ins/VST3` and
           `~/Library/Audio/Plug-Ins/Components`, Linux: `~/.vst3`).

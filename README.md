@@ -10,7 +10,7 @@ Developed at the [Jade Hochschule](https://www.kvraudio.com/developer/jade-hochs
 engineers. Free, open source, no commercial interest. **Vibe-coded with an AI** -- see
 [How it was made](#how-it-was-made).
 
-| Night theme: "Two patterns" (pattern 2 edited, pattern 1 playing) | Day theme: "Four patterns", pan page |
+| Night theme: "Ratchets", repeat page, a bent fade-out curve | Day theme: "Four patterns" (pattern 2 edited), pan page |
 |---|---|
 | ![DrumFeatureDemonstrator, night theme](docs/img/drumfeature_night.png) | ![DrumFeatureDemonstrator, day theme](docs/img/drumfeature_day.png) |
 
@@ -48,7 +48,7 @@ chosen pitch,
 
 (N samples of the played region, p the step note minus the base note in semitones), and starts the
 sound at *end of the step - d*. Because the pattern repeats and d is at most one pattern long, the start
-lies in the pass before; the plugin looks ahead. The beat position, the tempo and the play state come
+lies in the pass before; the plugin looks ahead. With *repeat* (ratchets) every hit ends at the end of its part of the step. The beat position, the tempo and the play state come
 from the DAW (`AudioPlayHead`), so it stays in sync. If the start time has already passed (the transport
 starts or jumps into the run-up) the sound is not played and a notice tells why.
 
@@ -102,13 +102,15 @@ To be honest: DrumFeatureDemonstrator is **vibe-coded**. The code was written by
   changed the plugin: the note-based pitch, the info line, the step cursor, the keyboard labels, the slider look,
   the fades and the drag and drop.
 - **Tests by the AI:**
-  - unit tests of the pure code (scheduler, sequencer, sample engine, sample store; `ctest`), including an
+  - unit tests of the pure code (scheduler with ratchets, sequencer, sample engine with fade shapes, sample store, pattern data and
+    its saved blob, pattern library; `ctest`), including an
     end-to-end test that a reversed sound ends within one resampling step of the end of its step, for several
     pitches and sample rates, and a check that rendering does not allocate memory;
   - renders through the real plugin code with the `Tester` (`render`, `snapshot`, keys, drops, state save/restore),
     analysed with Python: e.g. with a MusicRadar cymbal at 120 bpm the reversed sounds end at 1.0000, 2.0000,
     3.0000 and 4.0000 s;
-  - [pluginval](https://github.com/Tracktion/pluginval) at strictness level 10;
+  - [pluginval](https://github.com/Tracktion/pluginval) 2.x at strictness level 10 (the old 1.0.4 crashed now and then in its own VST3
+    run loop with plugins with many parameters; the cause was found with gdb and a stress plugin, see [DEVELOPMENT_LOG.md](DEVELOPMENT_LOG.md));
   - real mouse input and a real GTK drag source (XTest) on the Standalone and on the author's running
     Bitwig window to find and fix the drag and drop problem.
 
@@ -153,10 +155,10 @@ the zips are attached to the workflow run.
 |---|---|
 | [planning.md](planning.md), [DEVELOPMENT_LOG.md](DEVELOPMENT_LOG.md) | plan, decisions, progress; log of the development with results and findings |
 | [docs/design/W2-play-to-end.md](docs/design/W2-play-to-end.md) | the play-to-end algorithm |
-| `src/` | the algorithm without GUI code: `StepScheduler` (pure scheduling incl. play to end and the chain of four patterns), `Sequencer` (transport, internal clock), `VoiceBank` / `SampleVoice` (resampling playback, fades), `SampleHolder` (lock-free hand-over), `SampleStore` (samples folder, project state), `StepParameters`, `NoteNames` |
+| `src/` | the algorithm without GUI code: `StepScheduler` (pure scheduling incl. play to end and the chain of four patterns), `Sequencer` (transport, internal clock), `VoiceBank` / `SampleVoice` (resampling playback, fades), `SampleHolder` (lock-free hand-over), `SampleStore` (samples folder, project state), `StepValues`, `NoteNames` |
 | `src/platform/` | `XdndTarget`: file drops into a host window on Linux (plain Xlib) |
-| `gui/` | `WaveformView`, `StepGrid`, `PatternSelector` |
-| `src/PatternData.*` | the four patterns as lock-free data (no host parameters), saved as one blob (format in the header) in the plugin state |
+| `src/PatternData.*`, `src/PatternLibrary.*` | the four patterns and the pattern settings as lock-free data (no host parameters), saved as one blob (format in the header) in the plugin state; the library of typical patterns (text format in the header) |
+| `gui/` | `WaveformView`, `StepGrid`, `PatternSelector`, `PatternTools` (icon buttons) |
 | `DrumFeatureDemonstrator.*`, `Plugin*.*` | parameters, audio glue, main GUI, editor (from the template) |
 | `tests/` | unit tests (`juce::UnitTest`, CTest); `tests/manual/` small tools to test drag and drop by hand |
 | `tools/` | template helpers (preset handler, day/night look, pluginval scripts), the `Tester`, `fetch_samples.sh`, `make_factory_presets.py` |
