@@ -105,6 +105,8 @@ void DrumFeatureDemonstratorAudio::addNoteEvents(const juce::MidiBuffer& midiMes
         voiceStart.regionEnd = regionEnd;
         voiceStart.fadeInSamples = m_fadeInSamples;
         voiceStart.fadeOutSamples = m_fadeOutSamples;
+        voiceStart.fadeInExponent = m_fadeInExponent;
+        voiceStart.fadeOutExponent = m_fadeOutExponent;
         voiceStart.playbackRatio = dfd::playbackRatio(semitones, sample.sampleRate, m_hostSampleRate);
         voiceStart.reverse = false;
         voiceStart.gain = message.getFloatVelocity();
@@ -191,6 +193,8 @@ void DrumFeatureDemonstratorAudio::addSequencerEvents(const dfd::SampleData& sam
         voiceStart.regionEnd = regionEnd;
         voiceStart.fadeInSamples = m_fadeInSamples;
         voiceStart.fadeOutSamples = m_fadeOutSamples;
+        voiceStart.fadeInExponent = m_fadeInExponent;
+        voiceStart.fadeOutExponent = m_fadeOutExponent;
         voiceStart.playbackRatio = soundStart.playbackRatio;
         voiceStart.pan = soundStart.pan;
         voiceStart.reverse = soundStart.reverse;
@@ -222,6 +226,8 @@ int DrumFeatureDemonstratorAudio::processSynchronBlock(juce::AudioBuffer<float> 
         region.fileSampleRate = sample->sampleRate;
         m_fadeInSamples = static_cast<double>(m_fadeIn->load()) * sample->sampleRate;
         m_fadeOutSamples = static_cast<double>(m_fadeOut->load()) * sample->sampleRate;
+        m_fadeInExponent = dfd::fadeExponent(static_cast<double>(m_fadeInShape->load()));
+        m_fadeOutExponent = dfd::fadeExponent(static_cast<double>(m_fadeOutShape->load()));
         const double totalFade = m_fadeInSamples + m_fadeOutSamples;
         if (totalFade > region.lengthInFileSamples && totalFade > 0.0)
         {
@@ -269,6 +275,8 @@ void DrumFeatureDemonstratorAudio::addParameter(std::vector<std::unique_ptr<juce
     paramVector.push_back(jade::makeParameter(g_paramInternalBpm));
     paramVector.push_back(jade::makeParameter(g_paramFadeIn));
     paramVector.push_back(jade::makeParameter(g_paramFadeOut));
+    paramVector.push_back(jade::makeParameter(g_paramFadeInShape));
+    paramVector.push_back(jade::makeParameter(g_paramFadeOutShape));
 }
 
 void DrumFeatureDemonstratorAudio::prepareParameter(std::unique_ptr<juce::AudioProcessorValueTreeState> &vts)
@@ -278,6 +286,8 @@ void DrumFeatureDemonstratorAudio::prepareParameter(std::unique_ptr<juce::AudioP
     m_regionEnd = vts->getRawParameterValue(g_paramRegionEnd.ID);
     m_fadeIn = vts->getRawParameterValue(g_paramFadeIn.ID);
     m_fadeOut = vts->getRawParameterValue(g_paramFadeOut.ID);
+    m_fadeInShape = vts->getRawParameterValue(g_paramFadeInShape.ID);
+    m_fadeOutShape = vts->getRawParameterValue(g_paramFadeOutShape.ID);
     m_internalBpm = vts->getRawParameterValue(g_paramInternalBpm.ID);
 }
 
@@ -285,6 +295,9 @@ void DrumFeatureDemonstratorAudio::prepareParameter(std::unique_ptr<juce::AudioP
 namespace
 {
 constexpr int kTimerIntervalMs = 33;
+constexpr float kVersionAlpha = 0.6f;
+constexpr float kMinVersionFontSize = 10.0f;
+constexpr float kVersionFontFraction = 0.016f;
 constexpr int kSkippedNoticeTicks = 90; // about 3 seconds
 constexpr float kRowFractionTop = 0.09f;
 constexpr float kRowFractionSecond = 0.09f;
@@ -330,7 +343,8 @@ void setupBarSlider(juce::Slider& slider)
 DrumFeatureDemonstratorGUI::DrumFeatureDemonstratorGUI(DrumFeatureDemonstratorAudioProcessor& p, juce::AudioProcessorValueTreeState& apvts)
 :m_processor(p) ,m_apvts(apvts),
  m_waveform(*apvts.getParameter(g_paramRegionStart.ID), *apvts.getParameter(g_paramRegionEnd.ID),
-            *apvts.getParameter(g_paramFadeIn.ID), *apvts.getParameter(g_paramFadeOut.ID)),
+            *apvts.getParameter(g_paramFadeIn.ID), *apvts.getParameter(g_paramFadeOut.ID),
+            *apvts.getParameter(g_paramFadeInShape.ID), *apvts.getParameter(g_paramFadeOutShape.ID)),
  m_stepGrid(p.m_algo.getPatternData()),
  m_patternSelector(p.m_algo.getPatternData()),
  m_baseNoteAttachment(apvts, g_paramBaseNote.ID, m_baseNoteSlider),
@@ -892,16 +906,26 @@ void DrumFeatureDemonstratorGUI::loadSampleFile(const juce::File& file)
     }
 }
 
+juce::String DrumFeatureDemonstratorGUI::versionText()
+{
+    return "V " + juce::String(PLUGIN_VERSION_MAJOR) + "." + juce::String(PLUGIN_VERSION_MINOR) + "." + juce::String(PLUGIN_VERSION_PATCH);
+}
+
+juce::Font DrumFeatureDemonstratorGUI::versionFont() const
+{
+    return juce::Font(juce::FontOptions(juce::jmax(kMinVersionFontSize, kVersionFontFraction * static_cast<float>(getHeight()))));
+}
+
 void DrumFeatureDemonstratorGUI::paint(juce::Graphics &g)
 {
     g.fillAll (getLookAndFeel().findColour (juce::ResizableWindow::backgroundColourId).brighter(0.3f));
 
     // Take colours from the LookAndFeel (findColour), not fixed ones like juce::Colour(0xffffffff):
     // then your GUI follows the day/night theme (WITH_DAYNIGHT) and any other LookAndFeel.
-    g.setColour (getLookAndFeel().findColour (juce::Label::textColourId).withAlpha(0.6f));
-    g.setFont (juce::jmax(10.0f, 0.016f * static_cast<float>(getHeight())));
-    juce::String text2display = "V " + juce::String(PLUGIN_VERSION_MAJOR) + "." + juce::String(PLUGIN_VERSION_MINOR) + "." + juce::String(PLUGIN_VERSION_PATCH);
-    g.drawFittedText (text2display, getLocalBounds(), juce::Justification::bottomRight, 1);
+    // the version, very small, in the bottom right corner (in a place of its own, so the info line does not run over it)
+    g.setColour (getLookAndFeel().findColour (juce::Label::textColourId).withAlpha(kVersionAlpha));
+    g.setFont (versionFont());
+    g.drawFittedText (versionText(), m_versionArea, juce::Justification::centredRight, 1);
 }
 
 void DrumFeatureDemonstratorGUI::placeControlWithLabel(juce::Rectangle<int> area, juce::Label& label, juce::Component& control)
@@ -958,6 +982,8 @@ void DrumFeatureDemonstratorGUI::resized()
     m_pagePanButton.setBounds(bottomBar.removeFromLeft(2 * pageUnit).reduced(margin / 2, 1));
     m_pageRepeatButton.setBounds(bottomBar.removeFromLeft(2 * pageUnit).reduced(margin / 2, 1));
     m_pageRampButton.setBounds(bottomBar.removeFromLeft(2 * pageUnit).reduced(margin / 2, 1));
+    const int versionWidth = static_cast<int>(std::ceil(juce::GlyphArrangement::getStringWidth(versionFont(), versionText()))) + margin;
+    m_versionArea = bottomBar.removeFromRight(versionWidth);
     m_infoLabel.setBounds(bottomBar.reduced(margin, 0));
     m_stepGrid.setBounds(r);
 }

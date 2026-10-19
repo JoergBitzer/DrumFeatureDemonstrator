@@ -17,7 +17,7 @@ endif()
 
 set(TARGET_NAME DrumFeatureDemonstrator)
 
-project(${TARGET_NAME} VERSION 0.14.0)
+project(${TARGET_NAME} VERSION 0.15.0)
 
 if(NOT TARGET juce::juce_core) # JUCE not added by a parent project: use the submodule
     if(NOT EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/JUCE/CMakeLists.txt")

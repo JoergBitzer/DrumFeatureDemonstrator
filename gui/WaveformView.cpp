@@ -1,6 +1,7 @@
 #include "WaveformView.h"
 
 #include "../src/DebugLog.h"
+#include "../src/SampleVoice.h"
 
 #include <algorithm>
 #include <cmath>
@@ -35,12 +36,20 @@ constexpr float kLabelGap = 6.0f;
 constexpr float kLabelBottomMargin = 4.0f;
 constexpr float kNoSampleSeconds = 1.0f;
 constexpr float kMaxFadeSeconds = 10.0f;
+constexpr float kShapeHandleRadius = 5.0f;
+constexpr float kShapeGrabDistance = 10.0f;
+constexpr float kMinShapeHandleWidth = 14.0f;   // a fade narrower than this has no shape handle
+constexpr int kCurveSegments = 32;
+constexpr float kMinMiddleGain = 0.02f;         // the shape handle stays inside these gains
+constexpr float kMaxMiddleGain = 0.98f;
+constexpr float kNearLinearShape = 0.02f;
 constexpr int kDecimalsOfSeconds = 3;
 const juce::Colour kHandleColour(0xFFF0A030);
 } // namespace
 
 WaveformView::WaveformView(juce::RangedAudioParameter& startParameter, juce::RangedAudioParameter& endParameter,
-                           juce::RangedAudioParameter& fadeInParameter, juce::RangedAudioParameter& fadeOutParameter)
+                           juce::RangedAudioParameter& fadeInParameter, juce::RangedAudioParameter& fadeOutParameter,
+                           juce::RangedAudioParameter& fadeInShapeParameter, juce::RangedAudioParameter& fadeOutShapeParameter)
     : m_startAttachment(startParameter,
                         [this](float value)
                         {
@@ -64,14 +73,29 @@ WaveformView::WaveformView(juce::RangedAudioParameter& startParameter, juce::Ran
                           {
                               m_fadeOutSeconds = value;
                               repaint();
-                          })
+                          }),
+      m_fadeInShapeAttachment(fadeInShapeParameter,
+                              [this](float value)
+                              {
+                                  m_fadeInShape = value;
+                                  repaint();
+                              }),
+      m_fadeOutShapeAttachment(fadeOutShapeParameter,
+                               [this](float value)
+                               {
+                                   m_fadeOutShape = value;
+                                   repaint();
+                               })
 {
+    m_fadeInShapeAttachment.sendInitialUpdate();
+    m_fadeOutShapeAttachment.sendInitialUpdate();
     m_startAttachment.sendInitialUpdate();
     m_endAttachment.sendInitialUpdate();
     m_fadeInAttachment.sendInitialUpdate();
     m_fadeOutAttachment.sendInitialUpdate();
     setTooltip("Waveform: drag the start and end line (middle and lower part) to set the played region, drag the small squares at the top "
-               "for the fade in and fade out time. Drop a sample file here to load it.");
+               "for the fade in and fade out time, and the circles in the middle of the fade lines to bend the fade curve (double-click: linear). "
+               "Drop a sample file here to load it.");
 }
 
 void WaveformView::setSample(std::shared_ptr<const SampleData> sample)
@@ -189,10 +213,97 @@ void WaveformView::drawTimeLabel(juce::Graphics& g, float lineX, float seconds, 
     g.drawText(text, box, juce::Justification::centred);
 }
 
-void WaveformView::drawFadeLabel(juce::Graphics& g, float handleX, float seconds, bool labelOnTheRight) const
+juce::String WaveformView::shapeText(float shape)
+{
+    if (std::abs(shape) < kNearLinearShape)
+    {
+        return "curve: linear";
+    }
+    juce::String kind = "anti-exponential";
+    if (shape < 0.0f)
+    {
+        kind = "exponential";
+    }
+    return "curve: " + kind + " " + juce::String(static_cast<int>(std::lround(std::abs(shape) * 100.0f))) + " %";
+}
+
+float WaveformView::curveY(float gain) const
+{
+    const float height = static_cast<float>(getHeight());
+    return height - gain * (height - kEnvelopeTopMargin);
+}
+
+float WaveformView::fadeWidthInPixels(bool forFadeIn) const
+{
+    float fadeIn = 0.0f;
+    float fadeOut = 0.0f;
+    effectiveFades(fadeIn, fadeOut);
+    if (forFadeIn)
+    {
+        return secondsToWidth(fadeIn);
+    }
+    return secondsToWidth(fadeOut);
+}
+
+// the circle in the middle of a fade line: it sits on the curve at half of the fade time
+juce::Point<float> WaveformView::shapeHandlePosition(bool forFadeIn) const
+{
+    const float width = fadeWidthInPixels(forFadeIn);
+    float middleX = fractionToX(m_endFraction) - kHalf * width;
+    float shape = m_fadeOutShape;
+    if (forFadeIn)
+    {
+        middleX = fractionToX(m_startFraction) + kHalf * width;
+        shape = m_fadeInShape;
+    }
+    const float middleGain = std::pow(kHalf, static_cast<float>(fadeExponent(static_cast<double>(shape))));
+    return {middleX, curveY(middleGain)};
+}
+
+bool WaveformView::hasShapeHandle(bool forFadeIn) const
+{
+    return fadeWidthInPixels(forFadeIn) >= kMinShapeHandleWidth;
+}
+
+// adds the curve of a fade to the path (which is at the start of the fade: the start line for the fade in, the fade-out handle for the fade out)
+void WaveformView::addFadeCurve(juce::Path& path, bool forFadeIn) const
+{
+    const float width = fadeWidthInPixels(forFadeIn);
+    if (width <= 0.0f)
+    {
+        if (forFadeIn)
+        {
+            path.lineTo(fractionToX(m_startFraction), kEnvelopeTopMargin);
+        }
+        else
+        {
+            path.lineTo(fractionToX(m_endFraction), static_cast<float>(getHeight()));
+        }
+        return;
+    }
+    const float exponent = static_cast<float>(fadeExponent(static_cast<double>(m_fadeOutShape)));
+    float firstX = fractionToX(m_endFraction) - width;
+    float usedExponent = exponent;
+    if (forFadeIn)
+    {
+        firstX = fractionToX(m_startFraction);
+        usedExponent = static_cast<float>(fadeExponent(static_cast<double>(m_fadeInShape)));
+    }
+    for (int segment = 1; segment <= kCurveSegments; ++segment)
+    {
+        const float progress = static_cast<float>(segment) / static_cast<float>(kCurveSegments);
+        float gain = std::pow(1.0f - progress, usedExponent);
+        if (forFadeIn)
+        {
+            gain = std::pow(progress, usedExponent);
+        }
+        path.lineTo(firstX + progress * width, curveY(gain));
+    }
+}
+
+void WaveformView::drawFadeLabel(juce::Graphics& g, float handleX, const juce::String& text, bool labelOnTheRight) const
 {
     const juce::Font font{juce::FontOptions{kLabelFontHeight}};
-    const juce::String text = "fade " + secondsText(seconds);
     const float width = juce::GlyphArrangement::getStringWidth(font, text) + 2.0f * kLabelPadding;
     const float height = kLabelFontHeight + kLabelPadding;
     float left = handleX - width - kFadeHandleSize;
@@ -259,9 +370,10 @@ void WaveformView::paint(juce::Graphics& g)
     const float fadeOutX = endX - secondsToWidth(fadeOut);
     juce::Path envelope;
     envelope.startNewSubPath(startX, height);
-    envelope.lineTo(fadeInX, kEnvelopeTopMargin);
+    addFadeCurve(envelope, true);
     envelope.lineTo(fadeOutX, kEnvelopeTopMargin);
-    envelope.lineTo(endX, height);
+    envelope.startNewSubPath(fadeOutX, kEnvelopeTopMargin);
+    addFadeCurve(envelope, false);
     g.setColour(kHandleColour);
     g.strokePath(envelope, juce::PathStrokeType(kLineWidth, juce::PathStrokeType::curved, juce::PathStrokeType::rounded));
 
@@ -271,17 +383,33 @@ void WaveformView::paint(juce::Graphics& g)
     g.fillRoundedRectangle(endX - 0.5f * kKnobWidth, knobY, kKnobWidth, kKnobHeight, kCornerSize);
     g.fillRect(fadeInX - 0.5f * kFadeHandleSize, kEnvelopeTopMargin - 0.5f * kFadeHandleSize, kFadeHandleSize, kFadeHandleSize);
     g.fillRect(fadeOutX - 0.5f * kFadeHandleSize, kEnvelopeTopMargin - 0.5f * kFadeHandleSize, kFadeHandleSize, kFadeHandleSize);
+    for (const bool forFadeIn : {true, false})
+    {
+        if (hasShapeHandle(forFadeIn))
+        {
+            const juce::Point<float> centre = shapeHandlePosition(forFadeIn);
+            g.fillEllipse(centre.x - kShapeHandleRadius, centre.y - kShapeHandleRadius, 2.0f * kShapeHandleRadius, 2.0f * kShapeHandleRadius);
+        }
+    }
 
     // times: the start and the end line show their time in the sample
     drawTimeLabel(g, startX, m_startFraction * sampleSeconds(), true);
     drawTimeLabel(g, endX, m_endFraction * sampleSeconds(), false);
     if (m_hoveredHandle == Handle::FadeIn || m_draggedHandle == Handle::FadeIn)
     {
-        drawFadeLabel(g, fadeInX, fadeIn, true);
+        drawFadeLabel(g, fadeInX, "fade " + secondsText(fadeIn), true);
     }
     if (m_hoveredHandle == Handle::FadeOut || m_draggedHandle == Handle::FadeOut)
     {
-        drawFadeLabel(g, fadeOutX, fadeOut, false);
+        drawFadeLabel(g, fadeOutX, "fade " + secondsText(fadeOut), false);
+    }
+    if (m_hoveredHandle == Handle::FadeInShape || m_draggedHandle == Handle::FadeInShape)
+    {
+        drawFadeLabel(g, shapeHandlePosition(true).x, shapeText(m_fadeInShape), true);
+    }
+    if (m_hoveredHandle == Handle::FadeOutShape || m_draggedHandle == Handle::FadeOutShape)
+    {
+        drawFadeLabel(g, shapeHandlePosition(false).x, shapeText(m_fadeOutShape), false);
     }
 
     g.setColour(textColour.withAlpha(kBorderAlpha));
@@ -302,6 +430,20 @@ WaveformView::Handle WaveformView::handleAt(float x, float y) const
     const float endX = fractionToX(m_endFraction);
     const float fadeInX = startX + secondsToWidth(fadeIn);
     const float fadeOutX = endX - secondsToWidth(fadeOut);
+
+    // the circles in the middle of the fade lines come first (they lie on the curves, below the squares)
+    const juce::Point<float> pointer(x, y);
+    for (const bool forFadeIn : {true, false})
+    {
+        if (hasShapeHandle(forFadeIn) && shapeHandlePosition(forFadeIn).getDistanceFrom(pointer) <= kShapeGrabDistance)
+        {
+            if (forFadeIn)
+            {
+                return Handle::FadeInShape;
+            }
+            return Handle::FadeOutShape;
+        }
+    }
 
     const bool inFadeZone = y < kFadeZoneFraction * static_cast<float>(getHeight());
     if (inFadeZone)
@@ -353,9 +495,26 @@ float WaveformView::snapToZeroCrossing(float fraction) const
     return static_cast<float>(snapped) / static_cast<float>(numSamples);
 }
 
-void WaveformView::setHandle(Handle handle, float x)
+void WaveformView::setHandle(Handle handle, juce::Point<float> position)
 {
+    const float x = position.x;
     const float fraction = xToFraction(x);
+    if (handle == Handle::FadeInShape || handle == Handle::FadeOutShape)
+    {
+        // the handle follows the mouse up and down: its height is the gain in the middle of the fade, from which the exponent follows
+        const float middleGain = juce::jlimit(kMinMiddleGain, kMaxMiddleGain, (static_cast<float>(getHeight()) - position.y) / (static_cast<float>(getHeight()) - kEnvelopeTopMargin));
+        const double exponent = std::log(static_cast<double>(middleGain)) / std::log(static_cast<double>(kHalf));
+        const float shape = juce::jlimit(-1.0f, 1.0f, static_cast<float>(-std::log2(exponent) / kShapeExponentRange));
+        if (handle == Handle::FadeInShape)
+        {
+            m_fadeInShapeAttachment.setValueAsPartOfGesture(shape);
+        }
+        else
+        {
+            m_fadeOutShapeAttachment.setValueAsPartOfGesture(shape);
+        }
+        return;
+    }
     if (handle == Handle::Start)
     {
         const float limit = m_endFraction - kMinRegionFraction;
@@ -401,6 +560,14 @@ void WaveformView::beginGestureOf(Handle handle)
     {
         m_fadeOutAttachment.beginGesture();
     }
+    if (handle == Handle::FadeInShape)
+    {
+        m_fadeInShapeAttachment.beginGesture();
+    }
+    if (handle == Handle::FadeOutShape)
+    {
+        m_fadeOutShapeAttachment.beginGesture();
+    }
 }
 
 void WaveformView::endGestureOf(Handle handle)
@@ -421,6 +588,14 @@ void WaveformView::endGestureOf(Handle handle)
     {
         m_fadeOutAttachment.endGesture();
     }
+    if (handle == Handle::FadeInShape)
+    {
+        m_fadeInShapeAttachment.endGesture();
+    }
+    if (handle == Handle::FadeOutShape)
+    {
+        m_fadeOutShapeAttachment.endGesture();
+    }
 }
 
 void WaveformView::mouseMove(const juce::MouseEvent& event)
@@ -434,6 +609,10 @@ void WaveformView::mouseMove(const juce::MouseEvent& event)
     if (hovered == Handle::None)
     {
         setMouseCursor(juce::MouseCursor::NormalCursor);
+    }
+    else if (hovered == Handle::FadeInShape || hovered == Handle::FadeOutShape)
+    {
+        setMouseCursor(juce::MouseCursor::UpDownResizeCursor);
     }
     else
     {
@@ -456,7 +635,20 @@ void WaveformView::mouseDown(const juce::MouseEvent& event)
 
 void WaveformView::mouseDrag(const juce::MouseEvent& event)
 {
-    setHandle(m_draggedHandle, event.position.x);
+    setHandle(m_draggedHandle, event.position);
+}
+
+void WaveformView::mouseDoubleClick(const juce::MouseEvent& event)
+{
+    const Handle handle = handleAt(event.position.x, event.position.y);
+    if (handle == Handle::FadeInShape)
+    {
+        m_fadeInShapeAttachment.setValueAsCompleteGesture(0.0f);
+    }
+    if (handle == Handle::FadeOutShape)
+    {
+        m_fadeOutShapeAttachment.setValueAsCompleteGesture(0.0f);
+    }
 }
 
 void WaveformView::mouseUp(const juce::MouseEvent& event)
