@@ -69,9 +69,10 @@ starts or jumps into the run-up) the sound is not played and a notice tells why.
 - **Info line** with the value of the control under the mouse (no room for an edit field per bar).
 - **Presets**: all four patterns, region, fades and the sample name; seven factory presets (they keep your sample).
   A DAW project contains the sample itself (up to 8 MB), so it works without the samples folder.
-- Day and night theme, resizable window. The base note, start/end, fades, pattern length, step note value and the tempo controls are
-  host parameters (automatable); the patterns themselves (steps, notes, velocities, pans, play switches) are not parameters but data
-  that is saved in presets and DAW projects, so they cannot be automated. The red *Save* button shows every change.
+- Day and night theme, resizable window. Only the base note, start, end, fade in, fade out and the internal tempo are host
+  parameters (automatable). Everything that belongs to the patterns is not a parameter but data that is saved in presets and DAW
+  projects: the steps (state, note, velocity, pan), the play switches, the pattern length, the step note value, Host sync and
+  Declick. The internal play button is not saved (a project starts stopped). The red *Save* button shows every change.
 
 ### Drag and drop on Linux
 Hosts such as Bitwig embed the plugin window in a window of their own that does not accept file drops. The

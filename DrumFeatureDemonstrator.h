@@ -19,35 +19,6 @@
 #include "PluginSettings.h"
 const struct
 {
-	const std::string ID = "PatternLength";
-	const std::string name = "Pattern length";
-	const std::string unitName = "steps";
-	const float minValue = 8.f;
-	const float maxValue = 32.f;
-	const float defaultValue = 16.f;
-	const int numDecimalPlaces = 0;
-	const bool logFrequency = false;
-	const std::string help = "Number of 1/16 steps of the pattern (8 - 32).";
-}g_paramPatternLength;
-
-// the note value of one step: a choice parameter, made in addParameter()
-const char* const g_stepNoteValueId = "StepNoteValue";
-
-const struct
-{
-	const std::string ID = "SyncToHost";
-	const std::string name = "Sync to host";
-	const std::string unitName = "";
-	const float minValue = 0.f;
-	const float maxValue = 1.f;
-	const float defaultValue = 1.f;
-	const int numDecimalPlaces = 0;
-	const bool logFrequency = false;
-	const std::string help = "1 = follow the tempo and position of the DAW, 0 = internal tempo and play button.";
-}g_paramSyncToHost;
-
-const struct
-{
 	const std::string ID = "InternalBpm";
 	const std::string name = "Internal tempo";
 	const std::string unitName = "bpm";
@@ -58,19 +29,6 @@ const struct
 	const bool logFrequency = false;
 	const std::string help = "Tempo of the internal beat (used if Sync to host is off).";
 }g_paramInternalBpm;
-
-const struct
-{
-	const std::string ID = "InternalPlay";
-	const std::string name = "Internal play";
-	const std::string unitName = "";
-	const float minValue = 0.f;
-	const float maxValue = 1.f;
-	const float defaultValue = 0.f;
-	const int numDecimalPlaces = 0;
-	const bool logFrequency = false;
-	const std::string help = "Plays (1) or pauses (0) the internal beat (used if Sync to host is off).";
-}g_paramInternalPlay;
 
 const struct
 {
@@ -97,20 +55,6 @@ const struct
 	const bool logFrequency = false;
 	const std::string help = "Fade-out time at the end of the played region (the top handle at the end line of the waveform).";
 }g_paramFadeOut;
-
-const struct
-{
-	const std::string ID = "Declick";
-	const std::string name = "Declick";
-	const std::string unitName = "";
-	const float minValue = 0.f;
-	const float maxValue = 1.f;
-	const float defaultValue = 0.f;
-	const int numDecimalPlaces = 0;
-	const bool logFrequency = false;
-	const std::string help = "If on, the start and end handles snap to a zero crossing of the sample when you move them (no click at the region edges).";
-}g_paramDeclick;
-
 
 class DrumFeatureDemonstratorAudioProcessor;
 
@@ -162,20 +106,6 @@ class DrumFeatureDemonstratorAudioProcessor;
 // This is how we define our parameter as globals to use it in the audio processor as well as in the editor.
 // Everything about a parameter is defined here once; tools/ParameterSpec.h makes the parameter
 // (jade::makeParameter) and its help text (jade::helpText, e.g. as tooltip) from it.
-const struct
-{
-	const std::string ID = "ExampleID";
-	const std::string name = "Example";
-	const std::string unitName = "xyz";
-	const float minValue = 1.f;
-	const float maxValue = 2.f;
-	const float defaultValue = 1.2f;
-	const int numDecimalPlaces = 1;     // display precision (also the step size, here 0.1)
-	const bool logFrequency = false;    // true: logarithmic range for frequencies (whole Hz)
-	const std::string help = "An example parameter; replace it with your own.";
-}g_paramExample;
-
-
 class DrumFeatureDemonstratorAudio : public SynchronBlockProcessor
 {
 public:
@@ -196,6 +126,8 @@ public:
     // state for the GUI (written by the audio thread, read by the GUI timer)
     int getCurrentStep() const { return m_currentStep.load(); }     // step in the playing pattern, -1 if nothing plays
     int getCurrentPattern() const { return m_currentPattern.load(); } // the pattern of the chain that plays, -1 if none
+    void setInternalPlay(bool shouldPlay) { m_internalPlay = shouldPlay; }
+    bool isInternalPlay() const { return m_internalPlay.load(); }
     bool isTransportRunning() const { return m_transportRunning.load(); }
     int getSkippedSoundCount() const { return m_skippedSoundCount.load(); } // counts up with every skipped sound
     juce::uint32 getInvalidStepMask(int patternIndex) const { return m_invalidStepMasks[static_cast<std::size_t>(patternIndex)].load(); } // bit n: step n cannot play to end
@@ -226,11 +158,8 @@ private:
     std::atomic<float>* m_fadeOut = nullptr;
     double m_fadeInSamples = 0.0;  // of the block being processed, in file samples
     double m_fadeOutSamples = 0.0;
-    std::atomic<float>* m_patternLength = nullptr;
-    std::atomic<float>* m_stepNoteValue = nullptr;
-    std::atomic<float>* m_syncToHost = nullptr;
     std::atomic<float>* m_internalBpm = nullptr;
-    std::atomic<float>* m_internalPlay = nullptr;
+    std::atomic<bool> m_internalPlay{false}; // the play button of the internal clock (not saved: a project starts stopped)
     dfd::PatternData m_patternData;
     dfd::PatternBank m_bank; // the patterns of the block being processed
     static constexpr int kStepEntryCapacity = 32;
@@ -273,7 +202,8 @@ private:
     void fileDroppedOnHostWindow(const std::string& droppedText);
     void applyStepEntries();
     void refreshPatternViews();
-    void setParameterWithGesture(const juce::String& parameterId, float value);
+    void showPatternSettings();
+    void setPatternSetting(dfd::PatternSetting setting, float value);
     void showInfo(const juce::String& text);
     int currentPatternLength() const;
     int currentEditPattern() const;
@@ -314,12 +244,7 @@ private:
     juce::TextButton m_pagePanButton;
     std::unique_ptr<juce::FileChooser> m_fileChooser;
 
-    juce::AudioProcessorValueTreeState::ButtonAttachment m_declickAttachment;
-    juce::AudioProcessorValueTreeState::ButtonAttachment m_syncAttachment;
-    juce::AudioProcessorValueTreeState::ButtonAttachment m_playAttachment;
     juce::AudioProcessorValueTreeState::SliderAttachment m_baseNoteAttachment;
-    juce::AudioProcessorValueTreeState::SliderAttachment m_lengthAttachment;
-    juce::AudioProcessorValueTreeState::ComboBoxAttachment m_stepValueAttachment;
     juce::AudioProcessorValueTreeState::SliderAttachment m_bpmAttachment;
 
     std::shared_ptr<const dfd::SampleData> m_shownSample;

@@ -7,12 +7,15 @@
 
 namespace
 {
-constexpr std::size_t kHeaderSize = 8;
 constexpr std::size_t kBytesPerValue = 4;
+constexpr std::size_t kNumSettingsInBlob = 4;
+constexpr std::size_t kHeaderSize = 8 + kNumSettingsInBlob * kBytesPerValue;
 constexpr std::size_t kExpectedBlobSize = kHeaderSize + 4 * 32 * 5 * kBytesPerValue;
 constexpr float kTinyTolerance = 1.0e-6f;
 constexpr std::size_t kPlayMaskIndex = 7;
-constexpr std::size_t kFirstValueIndex = 8;
+constexpr std::size_t kFirstSettingIndex = 8;
+constexpr std::size_t kFirstValueIndex = kHeaderSize;
+constexpr std::size_t kSyncSettingIndex = kFirstSettingIndex + 2 * kBytesPerValue; // length, note value, sync to host
 constexpr std::uint8_t kFloatOneBytes[kBytesPerValue] = {0x00, 0x00, 0x80, 0x3F}; // 1.0f, little endian
 constexpr float kOddNote = 61.4f;
 constexpr float kOutOfRangeVelocity = 500.0f;
@@ -29,6 +32,7 @@ public:
     {
         testDefaults();
         testLimits();
+        testSettings();
         testFillBank();
         testBlobRoundTrip();
         testBlobLayout();
@@ -68,6 +72,37 @@ private:
         data.setValue(3, 31, dfd::StepParam::Active, 1.0f);
         expectEquals(data.getValue(3, 31, dfd::StepParam::Active), 1.0f);
         expectEquals(data.getValue(3, 30, dfd::StepParam::Active), 0.0f); // the neighbour is untouched
+    }
+
+    void testSettings()
+    {
+        beginTest("settings: defaults, limits, rounding");
+        dfd::PatternData data;
+        expectEquals(data.getSetting(dfd::PatternSetting::Length), 16.0f);
+        expectEquals(data.getSetting(dfd::PatternSetting::NoteValue), 12.0f);
+        expectEquals(data.getSetting(dfd::PatternSetting::SyncToHost), 1.0f);
+        expectEquals(data.getSetting(dfd::PatternSetting::Declick), 0.0f);
+        data.setSetting(dfd::PatternSetting::Length, 100.0f);
+        expectEquals(data.getSetting(dfd::PatternSetting::Length), 32.0f);
+        data.setSetting(dfd::PatternSetting::Length, 2.0f);
+        expectEquals(data.getSetting(dfd::PatternSetting::Length), 8.0f);
+        data.setSetting(dfd::PatternSetting::NoteValue, 11.6f);
+        expectEquals(data.getSetting(dfd::PatternSetting::NoteValue), 12.0f);
+        data.setSetting(dfd::PatternSetting::NoteValue, 99.0f);
+        expectEquals(data.getSetting(dfd::PatternSetting::NoteValue), 20.0f);
+
+        beginTest("settings are part of the blob");
+        data.setSetting(dfd::PatternSetting::Length, 12.0f);
+        data.setSetting(dfd::PatternSetting::NoteValue, 11.0f);
+        data.setSetting(dfd::PatternSetting::SyncToHost, 0.0f);
+        data.setSetting(dfd::PatternSetting::Declick, 1.0f);
+        const std::vector<std::uint8_t> bytes = data.toBytes();
+        dfd::PatternData restored;
+        expect(restored.fromBytes(bytes.data(), bytes.size()));
+        expectEquals(restored.getSetting(dfd::PatternSetting::Length), 12.0f);
+        expectEquals(restored.getSetting(dfd::PatternSetting::NoteValue), 11.0f);
+        expectEquals(restored.getSetting(dfd::PatternSetting::SyncToHost), 0.0f);
+        expectEquals(restored.getSetting(dfd::PatternSetting::Declick), 1.0f);
     }
 
     void testFillBank()
@@ -129,13 +164,14 @@ private:
         const std::vector<std::uint8_t> bytes = data.toBytes();
         expectEquals(static_cast<int>(bytes.size()), static_cast<int>(kExpectedBlobSize));
         expect(bytes[0] == 'D' && bytes[1] == 'F' && bytes[2] == 'D' && bytes[3] == 'P');
-        expectEquals(static_cast<int>(bytes[4]), 1);   // version
+        expectEquals(static_cast<int>(bytes[4]), 2);   // version
         expectEquals(static_cast<int>(bytes[5]), 4);   // patterns
         expectEquals(static_cast<int>(bytes[6]), 32);  // steps
         expectEquals(static_cast<int>(bytes[kPlayMaskIndex]), 1); // only pattern 1 plays
         for (std::size_t byteIndex = 0; byteIndex < kBytesPerValue; ++byteIndex)
         {
             expectEquals(static_cast<int>(bytes[kFirstValueIndex + byteIndex]), static_cast<int>(kFloatOneBytes[byteIndex]));
+            expectEquals(static_cast<int>(bytes[kSyncSettingIndex + byteIndex]), static_cast<int>(kFloatOneBytes[byteIndex])); // sync is on by default
         }
     }
 

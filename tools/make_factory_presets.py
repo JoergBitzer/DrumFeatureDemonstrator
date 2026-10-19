@@ -9,16 +9,17 @@ import base64
 import os
 import struct
 
-PRESET_VERSION = 6 # 2: step note and velocity 1 - 127; 3: fade in / fade out; 4: four patterns, pan; 5: note value of a step; 6: patterns as one blob (PatternData)
+PRESET_VERSION = 7 # 2: step note and velocity 1 - 127; 3: fade in / fade out; 4: four patterns, pan; 5: note value of a step; 6: patterns as one blob (PatternData); 7: blob version 2 with the pattern settings
 BASE_NOTE = 60
 NUM_STEPS = 32
 NUM_PATTERNS = 4
 FORWARD, REVERSE, REVERSE_TO_END = 0, 1, 2
 
 SINGLE_DEFAULTS = {
-    "BaseNote": 60.0, "Declick": 0.0, "FadeIn": 0.0, "FadeOut": 0.0, "InternalBpm": 120.0, "InternalPlay": 0.0, "PatternLength": 16.0,
-    "RegionEnd": 1.0, "RegionStart": 0.0, "SyncToHost": 1.0, "StepNoteValue": 12.0, # 12 = 1/16
+    "BaseNote": 60.0, "FadeIn": 0.0, "FadeOut": 0.0, "InternalBpm": 120.0, "RegionEnd": 1.0, "RegionStart": 0.0,
 }
+SYNC_TO_HOST = 1.0
+DECLICK = 0.0
 
 # name: (pattern length, [pattern 1, pattern 2, ...], patterns that play[, note value index])
 # note value index: base * 3 + flavour; base 0 = 1/1, 1 = 1/2, 2 = 1/4, 3 = 1/8, 4 = 1/16 (the default, 12), 5 = 1/32, 6 = 1/64; flavour 0 normal, 1 dotted, 2 triplet
@@ -43,13 +44,14 @@ PRESETS = {
 }
 
 
-def pattern_blob(patterns, playing):
-    """The PatternData blob (format version 1, see src/PatternData.h): header, play mask, then per pattern and step
-    the floats active, mode, note, velocity, pan (little endian)."""
+def pattern_blob(patterns, playing, length, note_value):
+    """The PatternData blob (format version 2, see src/PatternData.h): header, play mask, the settings (length, note value,
+    sync to host, declick), then per pattern and step the floats active, mode, note, velocity, pan (little endian)."""
     play_mask = 0
     for pattern_number in playing:
         play_mask |= 1 << (pattern_number - 1)
-    blob = b"DFDP" + bytes([1, NUM_PATTERNS, NUM_STEPS, play_mask])
+    blob = b"DFDP" + bytes([2, NUM_PATTERNS, NUM_STEPS, play_mask])
+    blob += struct.pack("<4f", float(length), float(note_value), SYNC_TO_HOST, DECLICK)
     for pattern_index in range(NUM_PATTERNS):
         steps = patterns[pattern_index] if pattern_index < len(patterns) else {}
         for step in range(1, NUM_STEPS + 1):
@@ -62,12 +64,10 @@ def pattern_blob(patterns, playing):
 
 def preset_xml(name, length, patterns, playing, note_value=12):
     values = dict(SINGLE_DEFAULTS)
-    values["PatternLength"] = float(length)
-    values["StepNoteValue"] = float(note_value)
     lines = []
     for key in sorted(values):
         lines.append('  <PARAM id="%s" value="%.1f"/>' % (key, values[key]))
-    blob_text = base64.b64encode(pattern_blob(patterns, playing)).decode("ascii")
+    blob_text = base64.b64encode(pattern_blob(patterns, playing, length, note_value)).decode("ascii")
     header = ('<DrumFeatureDemonstratorVTS presetname="%s" category="Unknown" bank="Factory" presetversion="%d" PatternData="%s">'
               % (name, PRESET_VERSION, blob_text))
     return '<?xml version="1.0" encoding="UTF-8"?>\n' + header + "\n" + "\n".join(lines) + "\n</DrumFeatureDemonstratorVTS>\n"
